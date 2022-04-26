@@ -23,5 +23,43 @@ ggplot(df, aes(factor(hospital_death))) +
 
 # Data Preparation
 
+Import data	                                                          Crawford
+Store data into a dataframe	                                          Crawford
+Perform high level review of data	                                    Crawford
+Run prelim statistics on data	                                        Crawford
+Review data for missing data	                                        Baer
+Identify High integrity predictors                                    Baer
+Remove unhelpful predictors (Such as, perhaps, ID)                    Baer
+Transform data for usability	                                        Rane
+Visualize data	                                                      Baer
 
+
+Identify if any continuous data is non-normal	                        Funcheon
+```{r}
+#visualize data
+```
+
+
+Identify if any discrete data is heavily unbalanced                   Rane
+Consider data normalization	                                          Rane
+Consider balancing data	                                              Funcheon
+Consider transformation of some fields, such as log transformation	  Funcheon
+Cleanse data                                                        	Funcheon
+Format datafields into data levels (if needed)                    	  Funcheon
+Run statistical analysis of predictors  .                           	Rane
+Prune unhelpful predictors to drive to parsimonous model.	            Rane
+Evaluate for collinearity	                                            Baer
+Reduce model for predictors that have high colinearity	              Baer
+Re-run statistical analysis on reduced model	                        Crawford
+Break data up into train test and validate data set	                  Crawford
+Run model type #1	                                                    Crawford
+Evaluate results of model type #1	                                    Crawford
+Run model type #2	                                                    Crawford
+Evaluate results of model type #2	                                    Crawford
+Run model type #3	                                                    Rane
+Evaluate results of model type #3	                                    Rane
+Run model type #4	                                                    Funcheon
+Evaluate results of model type #4	                                    Funcheon
+Tune parameters of favored model                                    	Rane
+Validate favored model on Test group                                	Rane
 
