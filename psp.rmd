@@ -36,8 +36,23 @@ Visualize data	                                                      Baer
 
 Identify if any continuous data is non-normal	                        Funcheon
 ```{r}
+#install.packages("dplyr")
+library("dplyr")
+library("ggpubr")
+#is it a character?
+ischar <- sapply(df, is.character)
+ischar
+df1 <- df
 #visualize data
 ```
+
+```{r}
+#ggqqplot(df$h1_resprate_max)
+df1 <- df
+df1$h1_resprate_max <- log(df$h1_resprate_max)
+#ggqqplot(df1$h1_resprate_max)
+```
+
 
 
 Identify if any discrete data is heavily unbalanced                   Rane
