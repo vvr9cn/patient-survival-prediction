@@ -57,7 +57,6 @@ df <- na.omit(df)
 
 ```{r}
 # split data into training data and testing data
-#these variables are only used for first pass. Use trim_train_data and trim_test_data instead
 set.seed(123)
 train <- sample(1:nrow(df), nrow(df)*0.7)
 train_data <- df[train,]

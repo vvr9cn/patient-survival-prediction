@@ -17,15 +17,6 @@ df <- read.csv("dataset.csv")
 #str(df)
 #summary(df)
 
-library("dplyr")
-library("ggpubr")
-library(tree)
-library(caret)
-library(randomForest)
-library(lattice)
-library(dplyr)
-
-
 library(ggplot2)
 #ggplot(df, aes(factor(hospital_death))) +
 #  geom_bar()
@@ -57,7 +48,6 @@ df <- na.omit(df)
 
 ```{r}
 # split data into training data and testing data
-#these variables are only used for first pass. Use trim_train_data and trim_test_data instead
 set.seed(123)
 train <- sample(1:nrow(df), nrow(df)*0.7)
 train_data <- df[train,]
@@ -90,12 +80,12 @@ Visualize data	                                                      Baer
 Identify if any continuous data is non-normal	                        Funcheon
 ```{r}
 #install.packages("dplyr")
-#library("dplyr")
-#library("ggpubr")
+library("dplyr")
+library("ggpubr")
 #is it a character?
-#ischar <- sapply(df, is.character)
-#ischar
-#df1 <- df
+ischar <- sapply(df, is.character)
+ischar
+df1 <- df
 #visualize data
 ```
 
@@ -110,7 +100,7 @@ Cleanse data                                                        	Funcheon
 ```{r}
 #Austin
 #summary(df)
-#dfF <- df
+dfF <- df
 
 #dfF %>%
 #  filter(apache_4a_hospital_death_prob >= 0)
@@ -127,7 +117,7 @@ Cleanse data                                                        	Funcheon
 library(randomForest)
 #set.seed(123)
 start_t <- Sys.time()
-cat("",cat(" Variable selection Training started at:",format(start_t, "%a %b %d %X %Y")))
+cat("",cat("Training started at:",format(start_t, "%a %b %d %X %Y")))
 
 #uncomment this to run again.
 rf_eval <- randomForest(hospital_death~., data = train_data,
@@ -137,15 +127,15 @@ rf_eval
 varImpPlot(rf_eval)
 
 finish_t <- Sys.time()
-cat("",cat("Variable selection Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+cat("",cat("Training finished at:",format(finish_t, "%a %b %d %X %Y")))
 
-cat("Variable selection The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+cat("The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
 
 
 ```
 
 ```{r} 
-#Austin Identify the lowest impact variables from the RF run
+#Austin
 library(lattice)
 library(dplyr)
 rfImp <- importance(rf_eval)
@@ -154,14 +144,11 @@ rfImp <- importance(rf_eval)
 #write.csv(rfImp, "varSelection.csv")
 
 rf_Imp_Sort <- as.data.frame.matrix(rfImp)
-#adds a column for accuracy*gini for overall variable impact
 rf_Imp_Sort$cross <- rf_Imp_Sort$MeanDecreaseAccuracy*rf_Imp_Sort$MeanDecreaseGini
 #rf_Imp_Sort
-#adds an overall rank of impact of variable, with bigger being biggest ranked impact, with 1 being lowest impact
 rf_Imp_Sort$rank <- rank(rf_Imp_Sort$cross)
 #rf_Imp_Sort
 
-#variables ranked by cross order
 rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
 #rf_Imp_SO
 #variable list sorted by importance. Accuracy * Gini
@@ -172,13 +159,12 @@ rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
 rf_yhat <- predict(rf_eval, newdata = test_data)
 #accuracy score of mtry 5 rf used for variable selection
 rfscore <- postResample(rf_yhat, test_data$hospital_death)
-print(rfscore)
 ```
 
 ```{r}
 rfVarDrop <-rf_Imp_Sort
 #trim the bottom 30 predictors
-rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
+rfVarDrop <- rfVarSel %>% filter(rank <= 30)
 #rfVarSel
 
 dropVar <- row.names(rfVarDrop)
@@ -196,12 +182,12 @@ dfTrim <- na.omit(dfTrim)
 train2 <- sample(1:nrow(dfTrim), nrow(dfTrim)*0.7)
 trim_train_data <- dfTrim[train2,]
 trim_test_data <- dfTrim[-train2,]
-#str(dfTrim)
+str(dfTrim)
 ```
 
 ```{r}
 start_t <- Sys.time()
-cat("",cat("Trimmed Training started at:",format(start_t, "%a %b %d %X %Y")))
+cat("",cat("Training started at:",format(start_t, "%a %b %d %X %Y")))
 
 
 rf_eval2 <- randomForest(hospital_death~., data = trim_train_data,
@@ -211,25 +197,22 @@ rf_eval2
 varImpPlot(rf_eval2)
 
 finish_t <- Sys.time()
-cat("",cat("Trimmed Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+cat("",cat("Training finished at:",format(finish_t, "%a %b %d %X %Y")))
 
-cat("Trimmed The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+cat("The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
 ```
-
 ```{r} 
 #Check accuracy score
 rf_yhat2 <- predict(rf_eval2, newdata = trim_test_data)
 #accuracy score of mtry 5 rf used for variable selection
 rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
-rfscore2
-rfscore
 ```
 
 
 
 Consider data normalization	                                          Rane
 ```{r}
-#library(caret)
+library(caret)
 
 ```
 
@@ -237,8 +220,8 @@ Consider balancing data	                                              Funcheon
 Consider transformation of some fields, such as log transformation	  Funcheon
 ```{r}
 #ggqqplot(df$h1_resprate_max)
-#df1 <- df
-#df1$h1_resprate_max <- log(df$h1_resprate_max)
+df1 <- df
+df1$h1_resprate_max <- log(df$h1_resprate_max)
 #ggqqplot(df1$h1_resprate_max)
 ```
 
