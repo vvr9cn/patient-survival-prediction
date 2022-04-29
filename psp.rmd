@@ -23,6 +23,49 @@ ggplot(df, aes(factor(hospital_death))) +
 
 # Data Preparation
 
+
+```{r}
+# get rid of identifiers and random X column
+df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
+
+# Adam - what do we want to do with NA's?
+
+# change columns to factors
+factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+             "intubated_apache","ventilated_apache","aids","cirrhosis",
+             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+             "lymphoma","solid_tumor_with_metastasis","apache_3j_bodysystem",
+             "apache_3j_diagnosis","hospital_death")
+df[factors] <- lapply(df[factors], factor)
+```
+
+
+Identify if any continuous data is non-normal	                        Funcheon
+```{r}
+#visualize data
+```
+
+```{r}
+# split data into training data and testing data
+set.seed(123)
+train <- sample(1:nrow(df), nrow(df)*0.7)
+train_data <- df[train,]
+test_data <- df[-train,]
+```
+
+```{r}
+library(tree)
+
+#this doesn't work
+first_tree <- tree(as.factor(hospital_death) ~., data = train_data)
+summary(first_tree)
+plot(first_tree)
+text(first_tree, cex = 0.75, col = 'red')
+```
+
+
 Import data	                                                          Crawford
 Store data into a dataframe	                                          Crawford
 Perform high level review of data	                                    Crawford
@@ -32,14 +75,6 @@ Identify High integrity predictors                                    Baer
 Remove unhelpful predictors (Such as, perhaps, ID)                    Baer
 Transform data for usability	                                        Rane
 Visualize data	                                                      Baer
-
-
-Identify if any continuous data is non-normal	                        Funcheon
-```{r}
-#visualize data
-```
-
-
 Identify if any discrete data is heavily unbalanced                   Rane
 Consider data normalization	                                          Rane
 Consider balancing data	                                              Funcheon
