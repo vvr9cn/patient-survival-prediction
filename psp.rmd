@@ -24,7 +24,10 @@ library(caret)
 library(randomForest)
 library(lattice)
 library(dplyr)
-
+library(lubridate)
+library(doParallel)
+cl <- makePSOCKcluster(detectCores() -1)
+registerDoParallel(cl)
 
 library(ggplot2)
 #ggplot(df, aes(factor(hospital_death))) +
@@ -222,7 +225,7 @@ rf_yhat2 <- predict(rf_eval2, newdata = trim_test_data)
 #accuracy score of mtry 5 rf used for variable selection
 rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
 rfscore2
-rfscore
+#rfscore
 ```
 
 
@@ -242,7 +245,6 @@ Consider transformation of some fields, such as log transformation	  Funcheon
 #ggqqplot(df1$h1_resprate_max)
 ```
 
-Format datafields into data levels (if needed)                    	  Funcheon
 Run statistical analysis of predictors  .                           	Rane
 Prune unhelpful predictors to drive to parsimonous model.	            Rane
 Evaluate for collinearity	                                            Baer
@@ -255,8 +257,45 @@ Run model type #2	                                                    Crawford
 Evaluate results of model type #2	                                    Crawford
 Run model type #3	                                                    Rane
 Evaluate results of model type #3	                                    Rane
-Run model type #4	                                                    Funcheon
-Evaluate results of model type #4	                                    Funcheon
+
+```{r}
+#Run Tune on RF Austin
+tuneGrid <- data.frame(mtry = 4:15)
+#tuneGrid
+
+
+control <- trainControl(method = 'cv', number = 5)
+# print out system time before training
+start_t <- Sys.time()
+cat("",cat("RFtune Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rftrim_tuned <- train(hospital_death ~ ., data = trim_train_data,
+                  method = 'rf',
+                  trControl = control,
+                  tuneGrid = tuneGrid)
+
+# print out system time after training
+finish_t <- Sys.time()
+cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+print(rftrim_tuned)
+```
+
+```{r} 
+#Check accuracy score of RF tuned
+rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore_tuned <- postResample(rf_yhat_tuned, trim_test_data$hospital_death)
+rfscore_tuned
+
+print(tfscore_tuned)
+plot(rfscore_tuned)
+```
+
 Tune parameters of favored model                                    	Rane
 Validate favored model on Test group                                	Rane
-
+```{r}
+stopCluster(cl)
+```
