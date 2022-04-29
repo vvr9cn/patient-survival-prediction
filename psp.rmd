@@ -29,6 +29,7 @@ ggplot(df, aes(factor(hospital_death))) +
 df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
 
 # Adam - what do we want to do with NA's?
+df <- na.omit(df)
 
 # change columns to factors
 factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
@@ -37,7 +38,7 @@ factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
              "intubated_apache","ventilated_apache","aids","cirrhosis",
              "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
              "lymphoma","solid_tumor_with_metastasis","apache_3j_bodysystem",
-             "apache_3j_diagnosis","hospital_death")
+             "hospital_death")
 df[factors] <- lapply(df[factors], factor)
 ```
 
