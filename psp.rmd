@@ -177,11 +177,13 @@ rf_yhat <- predict(rf_eval, newdata = test_data)
 rfscore <- postResample(rf_yhat, test_data$hospital_death)
 print(rfscore)
 ```
-
+ Accuracy     Kappa 
+0.9261574 0.3220481 
 ```{r}
 rfVarDrop <-rf_Imp_Sort
 #trim the bottom 30 predictors
-rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
+rfVarDrop <- rfVarDrop %>% filter(rank <= 50)
+#rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
 
 
 dropVar <- row.names(rfVarDrop)
@@ -259,9 +261,10 @@ Run model type #3	                                                    Rane
 Evaluate results of model type #3	                                    Rane
 
 ```{r}
-#Run Tune on RF Austin
-tuneGrid <- data.frame(mtry = 4:15)
-#tuneGrid
+#Run Tune on RF Austin  took 95 minutes with 4:15
+#tuneGrid <- data.frame(mtry = 4:15)
+tuneGrid <- data.frame(mtry = 9:9)
+#tuneGrid value came out 9.
 
 
 control <- trainControl(method = 'cv', number = 5)
@@ -281,8 +284,36 @@ cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
 cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
 
 print(rftrim_tuned)
-```
 
+#
+```
+RFtune Training started at: Fri Apr 29 5:13:10 PM 2022RFTune Training finished at: Fri Apr 29 6:48:32 PM 2022 RFTune The training process finished in 95.35552 minutesRandom Forest 
+
+42996 samples
+   50 predictor
+    2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (5 fold) 
+Summary of sample sizes: 34397, 34397, 34397, 34396, 34397 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+   4    0.9273421  0.3179540
+   5    0.9275049  0.3288148
+   6    0.9281328  0.3437036
+   7    0.9281096  0.3470367
+   8    0.9280398  0.3514676
+   9    0.9283654  0.3562677
+  10    0.9280165  0.3565548
+  11    0.9282957  0.3599356
+  12    0.9282259  0.3625530
+  13    0.9280166  0.3602829
+  14    0.9279003  0.3596171
+  15    0.9282259  0.3656226
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 9.
 ```{r} 
 #Check accuracy score of RF tuned
 rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
