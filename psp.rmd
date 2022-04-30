@@ -336,6 +336,31 @@ plot(rfscore_tuned)
 ```
  Accuracy     Kappa  65 removed
 0.9317824 0.3733778  
+
+```{r}
+#rownames(rfVarDrop)
+colnames(dfTrim)
+```
+Drop list: 
+ [1] "bmi"                         "elective_surgery"            "ethnicity"                   "gender"                      "height"                     
+ [6] "icu_admit_source"            "icu_id"                      "icu_stay_type"               "icu_type"                    "pre_icu_los_days"           
+[11] "weight"                      "apache_2_diagnosis"          "apache_post_operative"       "arf_apache"                  "gcs_eyes_apache"            
+[16] "gcs_motor_apache"            "gcs_unable_apache"           "gcs_verbal_apache"           "intubated_apache"            "map_apache"                 
+[21] "resprate_apache"             "ventilated_apache"           "d1_diasbp_max"               "d1_diasbp_noninvasive_max"   "d1_mbp_max"                 
+[26] "d1_mbp_min"                  "d1_mbp_noninvasive_max"      "d1_mbp_noninvasive_min"      "d1_resprate_max"             "d1_resprate_min"            
+[31] "d1_spo2_max"                 "d1_sysbp_max"                "d1_sysbp_noninvasive_max"    "h1_diasbp_max"               "h1_diasbp_min"              
+[36] "h1_diasbp_noninvasive_max"   "h1_diasbp_noninvasive_min"   "h1_heartrate_max"            "h1_heartrate_min"            "h1_mbp_max"                 
+[41] "h1_mbp_min"                  "h1_mbp_noninvasive_max"      "h1_mbp_noninvasive_min"      "h1_resprate_max"             "h1_resprate_min"            
+[46] "h1_spo2_max"                 "h1_spo2_min"                 "h1_sysbp_max"                "h1_sysbp_min"                "h1_sysbp_noninvasive_max"   
+[51] "h1_sysbp_noninvasive_min"    "d1_glucose_max"              "d1_glucose_min"              "d1_potassium_max"            "d1_potassium_min"           
+[56] "aids"                        "cirrhosis"                   "diabetes_mellitus"           "hepatic_failure"             "immunosuppression"          
+[61] "leukemia"                    "lymphoma"                    "solid_tumor_with_metastasis" "apache_3j_bodysystem"        "apache_2_bodysystem"  
+
+Keep List:
+ [1] "age"                           "apache_3j_diagnosis"           "heart_rate_apache"             "temp_apache"                   "d1_diasbp_min"                
+ [6] "d1_diasbp_noninvasive_min"     "d1_heartrate_max"              "d1_heartrate_min"              "d1_spo2_min"                   "d1_sysbp_min"                 
+[11] "d1_sysbp_noninvasive_min"      "d1_temp_max"                   "d1_temp_min"                   "apache_4a_hospital_death_prob" "apache_4a_icu_death_prob"     
+[16] "hospital_death"  
 Tune parameters of favored model                                    	Rane
 Validate favored model on Test group                                	Rane
 ```{r}
