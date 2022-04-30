@@ -182,7 +182,7 @@ print(rfscore)
 ```{r}
 rfVarDrop <-rf_Imp_Sort
 #trim the bottom 30 predictors
-rfVarDrop <- rfVarDrop %>% filter(rank <= 50)
+rfVarDrop <- rfVarDrop %>% filter(rank <= 65)
 #rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
 
 
@@ -229,6 +229,16 @@ rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
 rfscore2
 #rfscore
 ```
+
+ Accuracy     Kappa   lowest 50 predictors removed
+0.9295177 0.3744659
+ Accuracy     Kappa   lowest 60 predictors removed
+0.9272813 0.3754597
+Accuracy     Kappa    lowest 70 predictors removed
+0.9203867 0.3451922
+ Accuracy     Kappa    lowest 65 predictors removed
+0.9316949 0.3691730 
+
 
 
 
@@ -321,10 +331,11 @@ rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
 rfscore_tuned <- postResample(rf_yhat_tuned, trim_test_data$hospital_death)
 rfscore_tuned
 
-print(tfscore_tuned)
+print(rfscore_tuned)
 plot(rfscore_tuned)
 ```
-
+ Accuracy     Kappa  65 removed
+0.9317824 0.3733778  
 Tune parameters of favored model                                    	Rane
 Validate favored model on Test group                                	Rane
 ```{r}
