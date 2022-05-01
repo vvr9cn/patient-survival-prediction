@@ -235,6 +235,36 @@ getmode <- function(x, na.rm= FALSE){
 
 ```
 
+# Data Exploration and Visualization
+
+icu_stay_type and icu_type
+
+```{r}
+library(ggExtra)
+library(gridExtra)
+p <- ggplot(data, aes(x = apache_2_diagnosis, y = apache_3j_diagnosis)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+p1 <- ggMarginal(p, type = "histogram", fill = "green")
+
+p2 <- ggMarginal(p, type = "density", fill = "blue")
+
+p3 <- ggMarginal(p, type = "boxplot", fill = "orange")
+
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+icu_stay_type and icu_type
+
+```{r}
+# Grouped Bar Plot
+counts <- table(data$icu_stay_type, data$icu_type)
+barplot(counts, main="Icu type and Icu Stay type",
+  xlab="No. of ICU types", ylab= "No. of ICU stays", col=c("darkblue","red"),
+  legend = rownames(counts), beside=TRUE)
+```
+
 
 A scatter plot matrix to show the relationship between variables
 
@@ -274,22 +304,96 @@ ggplot(bplot, aes(x = variable, y = value, fill = "icu_admit_source")) +
   geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores")
 ```
 
+# wordclouds
+
+apache_3j bodysystem
 ```{r}
+library(tm)
+library(wordcloud)
+library(SnowballC)
+
+mooncloud <- df$apache_3j_bodysystem
+
+wordcloud(mooncloud, scale = c(10,0.7),
+          max.words=100,
+          random.order=FALSE,
+          rot.per=0.35,
+          use.r.layout = FALSE,
+          colors = brewer.pal(8, "Dark2"))
+```
+apache_2 bodysystem
+```{r}
+suncloud <- df$apache_2_bodysystem
+
+wordcloud(suncloud, scale = c(10,0.7),
+          max.words=100,
+          random.order=FALSE,
+          rot.per=0.35,
+          use.r.layout = FALSE,
+          colors = brewer.pal(8, "Dark2"))
+```
+
+# Predictive modeling
+
+K- nearest neighbors to predict whether a patient admitted in the hospital will survive or not?
+
+```{r}
+# Data partition: randomly split the dataset into a train (70%) and a test set (30%)
+index <- 1:nrow(data)
+set.seed(123)
+train_index <- sample(index, round(length(index)*0.7))
+train_set <- data[train_index,]
+test_set <- data[-train_index,]
+```
+
+```{r}
+# basic KNN model
+train_set$hospital_death <- as.factor(ifelse(train_set$hospital_death=='Yes', 1, 0))
+test_set$hospital_death <- as.factor(ifelse(test_set$hospital_death=='Yes', 1, 0))
+```
+
+
+```{r}
+library(class)
+# Select the true values of the response in training set
+cl <- train_set[,"hospital_death"]
+# Using knn for k = 5, 20
+knn5 <- knn(train_set[,-1],test_set[,-1], cl, k = 5)
+knn20 <- knn(train_set[,-1],test_set[,-1], cl, k = 20)
+```
+
+```{r}
+# Confusion matrix and statistics, k = 5
+confusionMatrix(knn5,test_set$hospital_death, positive = 'Yes')
+```
+
+```{r}
+table(ifelse(data$hospital_death >0, "yes", "no"))
 
 ```
 
 
 
+```{r}
+plot(knn5)
+plot(knn20)
+```
 
 
 
+```{r}
+set.seed(123)
+model2 <- train(hospital_death ~., data = knn_train, method = 'knn', preprocess = c("center","scale"))
+
+model2
+```
 
 
 
+Evaluating the performance of K- nearest neighbors
+```{r}
 
-
-
-
+```
 
 
 
