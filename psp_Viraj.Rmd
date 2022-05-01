@@ -1,0 +1,300 @@
+---
+title: "Patient Survival Prediction Project"
+author: "Adam Crawford, Adam Baer, Austin Funcheon, Viraj Rane"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Preparation
+
+Import data	                                                          Crawford
+Store data into a dataframe	                                          Crawford
+Perform high level review of data	                                    Crawford
+Run prelim statistics on data	                                        Crawford
+Review data for missing data	                                        Baer
+Identify High integrity predictors                                    Baer
+Remove unhelpful predictors (Such as, perhaps, ID)                    Baer
+Transform data for usability	                                        Rane
+Visualize data	                                                      Baer
+Identify if any continuous data is non-normal	                        Funcheon
+
+Identify if any discrete data is heavily unbalanced                   Rane
+Consider data normalization	                                          Rane
+Consider balancing data	                                              Funcheon
+Consider transformation of some fields, such as log transformation	  Funcheon
+Cleanse data                                                        	Funcheon
+Format datafields into data levels (if needed)                    	  Funcheon
+Run statistical analysis of predictors  .                           	Rane
+Prune unhelpful predictors to drive to parsimonous model.	            Rane
+Evaluate for collinearity	                                            Baer
+Reduce model for predictors that have high colinearity	              Baer
+Re-run statistical analysis on reduced model	                        Crawford
+Break data up into train test and validate data set	                  Crawford
+Run model type #1	                                                    Crawford
+Evaluate results of model type #1	                                    Crawford
+Run model type #2	                                                    Crawford
+Evaluate results of model type #2	                                    Crawford
+Run model type #3	                                                    Rane
+Evaluate results of model type #3	                                    Rane
+Run model type #4	                                                    Funcheon
+Evaluate results of model type #4	                                    Funcheon
+Tune parameters of favored model                                    	Rane
+Validate favored model on Test group                                	Rane
+
+
+```{r}
+# Importing all libraries
+library(caret)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+```
+
+# 1. Load the Data
+```{r}
+df <- read.csv("dataset.csv")
+# view the structure of data
+str(df)
+```
+
+# Data Cleaning
+
+Dropping all irrelevant columns / selecting all valid columns in the data set.
+●	ethnicity: The common national or cultural tradition which the person belongs to
+**Ethnicity has no significance in predicting patient's survival**
+
+●	encounter_id - Unique identifier associated with a patient unit stay
+●	patient_id: Unique identifier associated with a patient
+●	hospital_id: Unique identifier associated with a hospital
+●	icu_id: A unique identifier for the unit to which the patient was admitted
+**The above variables that represent identifications and will be of no use to us.**
+
+●	apache_post_operative: The APACHE operative status; 1 for post-operative, 0 for non-operative
+**The variable is of low importance justifying apache operative status as yes or no**
+
+●	gcs_unable_apache: Whether the Glasgow Coma Scale was unable to be assessed due to patient sedation
+**The above apache variables seem non-critical to be considered for predictive purpose.**
+
+●	d1_diasbp_noninvasive_max: The patient's highest diastolic blood pressure during the first 24 hours of their unit stay, non-invasively measured
+●	d1_diasbp_noninvasive_min: The patient's lowest diastolic blood pressure during the first 24 hours of their unit stay, non-invasively measured
+
+●	d1_sysbp_noninvasive_max: The patient's highest systolic blood pressure during the first 24 hours of their unit stay, invasively measured
+●	d1_sysbp_noninvasive_min: The patient's lowest systolic blood pressure during the first 24 hours of their unit stay, invasively measured
+
+●	h1_diasbp_noninvasive_max: The patient's highest diastolic blood pressure during the first hour of their unit stay, invasively measured
+●	h1_diasbp_noninvasive_min: The patient's lowest diastolic blood pressure during the first hour of their unit stay, invasively measured
+
+●	h1_sysbp_noninvasive_max: The patient's highest systolic blood pressure during the first hour of their unit stay, non-invasively measured
+●	h1_sysbp_noninvasive_min: The patient's lowest systolic blood pressure during the first hour of their unit stay, non-invasively measured
+
+**The d1 and h1 highest and lowest diastolic and systolic blood pressure variable measures are considered, but their noninvasive measures are excluded to avoid the issue of mulicollinearity between the variables.**
+
+●	d1_mbp_noninvasive_max: The patient's highest mean blood pressure during the first 24 hours of their unit stay, non-invasively measured
+●	d1_mbp_noninvasive_min: The patient's lowest mean blood pressure during the first 24 hours of their unit stay, non-invasively measured
+
+●	h1_mbp_noninvasive_max: The patient's highest mean blood pressure during the first hour of their unit stay, non-invasively measured
+●	h1_mbp_noninvasive_min: The patient's lowest mean blood pressure during the first hour of their unit stay, non-invasively measured
+
+**The d1 and h1 highest and lowest mean blood pressure (MBP) variable measures are considered, but their noninvasive measures are excluded to avoid the issue of mulicollinearity between the variables.**
+
+●	d1_glucose_max: The highest glucose concentration of the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_glucose_min: The lowest glucose concentration of the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_potassium_max: The highest potassium concentration for the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_potassium_min: The lowest potassium concentration for the patient in their serum or plasma during the first 24 hours of their unit stay
+
+**Glucose and potassium concentrations are considered are non critical measures for estimating the apache 4a score and patients survival and admission in the ICU ward**
+
+●	aids: Whether the patient has a definitive diagnosis of acquired immune deficiency syndrome (AIDS) (not HIV positive alone)
+●	cirrhosis: Whether the patient has a history of heavy alcohol use with portal hypertension and varices, other causes of cirrhosis with evidence of portal hypertension and varices, or biopsy proven cirrhosis.
+●	diabetes_mellitus: Whether the patient has been diagnosed with diabetes, either juvenile or adult onset, which requires medication.
+●	hepatic_failure: Whether the patient has cirrhosis and additional complications including jaundice and ascites, upper GI bleeding, hepatic encephalopathy, or coma.
+●	immunosuppression: Whether the patient has their immune system suppressed within six months prior to ICU admission for any of the following reasons: radiation therapy, chemotherapy, use of non-cytotoxic immunosuppressive drugs, high dose steroids (at least 0.3 mg/kg/day of methylprednisolone or equivalent for at least 6 months).
+●	leukemia: Whether the patient has been diagnosed with acute or chronic myelogenous leukemia, acute or chronic lymphocytic leukemia, or multiple myeloma.
+●	lymphoma: Whether the patient has been diagnosed with non-Hodgkin lymphoma.
+●	solid_tumor_with_metastasis: Whether the patient has been diagnosed with any solid tumor carcinoma (including malignant melanoma) which has evidence of metastasis.
+
+**The above variables have data that indicate whether a patient has any one or more ailments, they do not show any measures of the ailments, and therefore does not make them relevant for consideration**
+
+●	apache_3j_bodysystem: Admission diagnosis group for APACHE III
+●	apache_2_bodysystem: Admission diagnosis group for APACHE II
+
+**The bodysystem apache variables only categorizes a patient falling into one of the categories related to past or current condition for admission into the hospital**
+
+```{r}
+data <- df %>%
+  select(age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, icu_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, arf_apache, gcs_eyes_apache, gcs_motor_apache, gcs_verbal_apache, heart_rate_apache, intubated_apache, map_apache, resprate_apache, temp_apache, ventilated_apache, d1_diasbp_max, d1_diasbp_min, d1_heartrate_max, d1_heartrate_min, d1_mbp_max, d1_mbp_min, d1_resprate_max, d1_resprate_min, d1_spo2_max, d1_spo2_min, d1_sysbp_max, d1_sysbp_min, d1_temp_max, d1_temp_min, h1_diasbp_max, h1_diasbp_min, h1_heartrate_max, h1_heartrate_min, h1_mbp_max, h1_mbp_min, h1_resprate_max, h1_resprate_min, h1_spo2_max, h1_spo2_min, h1_sysbp_max, h1_sysbp_min, apache_4a_hospital_death_prob, apache_4a_icu_death_prob, hospital_death)
+
+data <- data.frame(data)
+str(data)
+```
+
+The have now selected 51 variables with 91713 observations to perform analysis.
+
+```{r}
+summary(data)
+```
+
+```{r}
+sum(is.na(data))
+```
+
+
+From the summary statistics we can see that the data set has 99294 missing values, we'll remove the missing values.
+
+```{r}
+# removing the missing values
+data %>% na.omit(data)
+```
+
+
+```{r}
+#converting categorical variables to numeric
+
+data$gender <- ifelse(as.factor(data$gender)=="M",1,0)
+data$gender <- as.numeric(as.character(data$gender))
+
+data$icu_admit_source <- as.factor(data$icu_admit_source)
+data$icu_admit_source <- unclass(data$icu_admit_source)
+data$icu_admit_source <- as.numeric(as.character(data$icu_admit_source))
+
+data$icu_stay_type <- as.factor(data$icu_stay_type)
+data$icu_stay_type <- unclass(data$icu_stay_type)
+data$icu_stay_type <- as.numeric(as.character(data$icu_stay_type))
+
+data$icu_type <- as.factor(data$icu_type)
+data$icu_type <- unclass(data$icu_type)
+data$icu_type <- as.numeric(as.character(data$icu_type))
+```
+
+# Dealing with missing values
+```{r}
+#missing values
+
+data[is.na(data)] <- min(data, na.rm = TRUE)
+sum(is.na(data))
+```
+
+
+# Confirming columns and observation duplication
+```{r}
+sum(duplicated(data))
+sum(duplicated(as.list(data)))
+```
+
+From the above result, we can see that the data set does not have any duplicate variables and observations.
+
+
+
+# BMI, Height, and Weight
+We first check the missing values in BMI and height columns.
+```{r}
+head(data$bmi)
+head(data$height)
+head(data$weight)
+
+sum(is.na(data$bmi))
+sum(is.na(data$height))
+sum(is.na(data$weight))
+```
+
+Next we round the decimals to 2.
+```{r, include=FALSE}
+
+round(data$bmi, digits = 2)
+round(data$height, digits = 2)
+round(data$weight, digits = 2)
+
+```
+
+Next we use the min function to calculate the minimum bmi and height. And we use the min values calculated by the function to fill the missing values
+```{r}
+#bmi
+data$bmi[is.na(data$bmi)] <- min(data$bmi, na.rm = TRUE)
+sum(is.na(data$bmi))
+#height
+data$height[is.na(data$height)] <- min(data$height, na.rm = TRUE)
+sum(is.na(data$height))
+#weight
+data$weight[is.na(data$weight)] <- min(data$weight, na.rm = TRUE)
+sum(is.na(data$weight))
+```
+
+
+```{r}
+# mode function
+getmode <- function(x, na.rm= FALSE){
+  u <- unique(x)
+  tab <- tabulate(match(x,u))
+  u[tab == max(tab)]
+}
+
+```
+
+
+A scatter plot matrix to show the relationship between variables
+
+```{r}
+pairs(~hospital_death + age + bmi + elective_surgery + gender, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+
+pairs(~hospital_death + height + icu_admit_source + icu_stay_type + pre_icu_los_days + weight, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+
+pairs(~hospital_death + apache_2_diagnosis + apache_3j_diagnosis + heart_rate_apache + apache_4a_hospital_death_prob + apache_4a_icu_death_prob, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+```
+
+```{r}
+# scatter plot apache 4a hospital death probability and hospital death
+
+ggplot(data, aes(apache_4a_icu_death_prob,apache_4a_hospital_death_prob)) + geom_point(alpha = 0.3) + geom_smooth(method = lm) + labs(x = "Apache 4a ICU death prob", y = "Apache 4a hospital death prob")
+```
+
+
+Drawing a correlation plot
+```{r}
+# correlation plot
+library(corrplot)
+data_plot <- data %>%
+  select(hospital_death, age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, heart_rate_apache, apache_4a_hospital_death_prob, apache_4a_icu_death_prob)
+data_plot <- data.frame(data_plot)
+M <- cor(data_plot)
+corrplot(M, method="number")
+corrplot(M, method= "circle")
+```
+
+```{r}
+# Box plots of Apache scores
+library(reshape)
+bplot <- melt(data = data_plot, measure.vars = c(11:15), variable_name = "variable")
+
+ggplot(bplot, aes(x = variable, y = value, fill = "icu_admit_source")) +
+  geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores")
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
