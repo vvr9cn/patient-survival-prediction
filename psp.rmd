@@ -16,6 +16,7 @@ df <- read.csv("dataset.csv")
 
 #str(df)
 #summary(df)
+#head(df)
 
 library("dplyr")
 library("ggpubr")
@@ -26,22 +27,20 @@ library(lattice)
 library(dplyr)
 library(lubridate)
 library(doParallel)
+library(e1071)
+library(ROSE)
+library(ggplot2)
 cl <- makePSOCKcluster(detectCores() -1)
 registerDoParallel(cl)
-
-library(ggplot2)
-#ggplot(df, aes(factor(hospital_death))) +
-#  geom_bar()
 ```
 
 # Data Preparation
-
 
 ```{r}
 # get rid of identifiers and random X column
 df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
 
-# change columns to factors
+# change categorical columns to factors
 factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
              "icu_stay_type","icu_type","apache_post_operative","arf_apache",
              "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
@@ -54,9 +53,24 @@ df[factors] <- lapply(df[factors], factor)
 
 df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kill all the omits if we later find those factors are irrelevant. our dataset cuts in half ~Austin
 
-# Adam - what do we want to do with NA's?
+# get rid of all rows with any NA's
 df <- na.omit(df)
 ```
+
+## Checking Accuracy of Apache 4 Probabilities and Degenerate Model
+
+```{r}
+# use confusion matrix on apache death probability and hospital_death and degenerate model
+conmat_hospital_prob <- confusionMatrix(as.factor(ifelse(df$apache_4a_hospital_death_prob>.5,1,0)),df$hospital_death)
+conmat_icu_prob <- confusionMatrix(as.factor(ifelse(df$apache_4a_icu_death_prob>.5,1,0)),df$hospital_death)
+conmat_degenerate <- confusionMatrix(as.factor(ifelse(df$apache_4a_hospital_death_prob>-1.1,1,0)),df$hospital_death)
+
+print(paste("Apache 4 hospital death probablility balanced accuracy:",round(conmat_hospital_prob$byClass["Balanced Accuracy"],2)))
+print(paste("Apache 4 ICU death probablility balanced accuracy:",round(conmat_icu_prob$byClass["Balanced Accuracy"],2)))
+print(paste("Degenerate model balanced accuracy:",conmat_degenerate$byClass["Balanced Accuracy"]))
+```
+
+## Split Data into Train and Test
 
 ```{r}
 # split data into training data and testing data
@@ -67,16 +81,104 @@ train_data <- df[train,]
 test_data <- df[-train,]
 ```
 
-```{r}
-library(tree)
+## Dealing with Imbalanced Data
 
-#this doesn't work
-first_tree <- tree(as.factor(hospital_death) ~., data = train_data)
-summary(first_tree)
-plot(first_tree)
-text(first_tree, cex = 0.75, col = 'red')
+```{r}
+# visualize imbalance of hospital_death
+ggplot(df, aes(hospital_death)) +
+  geom_bar()
+
+# number of 0s and 1s
+print("original hospital_death: ")
+table(df$hospital_death)
+
+# using oversampling with ROSE package
+over <- ovun.sample(hospital_death~., data = df, method = "over", N = 105312)$data
+print("oversampled hospital_death: ")
+table(over$hospital_death)
+
+# using undersampling with ROSE package
+under <- ovun.sample(hospital_death~., data = df, method = "under", N = 9884)$data
+print("undersampled hospital_death: ")
+table(under$hospital_death)
+
+# testing balanced accuracy of Apache 4 probabilities after oversampling
+# confusionMatrix(as.factor(ifelse(over$apache_4a_hospital_death_prob>.5,1,0)),over$hospital_death)
+# confusionMatrix(as.factor(ifelse(over$apache_4a_icu_death_prob>.5,1,0)),over$hospital_death)
+# Balanced accuracies end up being the same
 ```
 
+# Models and other stuff
+
+## Simple Decision Trees with Apache 4 Probabilities
+
+```{r}
+first_tree <- tree(hospital_death ~ ., data = train_data)
+#summary(first_tree)
+plot(first_tree)
+text(first_tree, cex = 0.75, col = 'red')
+
+oversampled_tree <- tree(hospital_death ~ ., data = over)
+#summary(oversampled_tree)
+plot(oversampled_tree)
+text(oversampled_tree, cex = 0.75, col = 'red')
+
+undersampled_tree <- tree(hospital_death ~ ., data = under)
+#summary(undersampled_tree)
+plot(undersampled_tree)
+text(undersampled_tree, cex = 0.75, col = 'red')
+
+ft_yhat <- predict(first_tree, newdata = test_data, type = 'class')
+over_tree_yhat <- predict(oversampled_tree, newdata = test_data, type = 'class')
+under_tree_yhat <- predict(undersampled_tree, newdata = test_data, type = 'class')
+
+conmat_ft <- confusionMatrix(ft_yhat, test_data$hospital_death)
+conmat_over_tree <- confusionMatrix(over_tree_yhat, test_data$hospital_death)
+conmat_under_tree <- confusionMatrix(under_tree_yhat, test_data$hospital_death)
+
+print(paste("First tree with Apache 4 Probability balanced accuracy:",round(conmat_ft$byClass["Balanced Accuracy"],2)))
+print(paste("Oversampled tree with Apache 4 Probability balanced accuracy:",round(conmat_over_tree$byClass["Balanced Accuracy"],2)))
+print(paste("Undersampled tree with Apache 4 Probability balanced accuracy:",round(conmat_under_tree$byClass["Balanced Accuracy"],2)))
+```
+
+## Simple Decision Trees w/o Apache 4 Probabilities
+
+```{r}
+train_data_wo_a4 <- as.data.frame(subset(train_data,
+                                         select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+over_wo_a4 <- as.data.frame(subset(over,select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+under_wo_a4 <- as.data.frame(subset(under,select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+
+first_tree_wo_apache4 <- tree(hospital_death ~ ., data = train_data_wo_a4)
+#summary(first_tree_wo_apache4)
+plot(first_tree_wo_apache4)
+text(first_tree_wo_apache4, cex = 0.75, col = 'red')
+
+oversampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = over_wo_a4)
+#summary(oversampled_tree_wo_apache4)
+plot(oversampled_tree_wo_apache4)
+text(oversampled_tree_wo_apache4, cex = 0.75, col = 'red')
+
+undersampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = under_wo_a4)
+#summary(undersampled_tree_wo_apache4)
+plot(undersampled_tree_wo_apache4)
+text(undersampled_tree_wo_apache4, cex = 0.75, col = 'red')
+
+ft_wo_a4_yhat <- predict(first_tree_wo_apache4, newdata = test_data, type = 'class')
+over_tree_wo_a4_yhat <- predict(oversampled_tree_wo_apache4, newdata = test_data, type = 'class')
+under_tree_wo_a4_yhat <- predict(undersampled_tree_wo_apache4, newdata = test_data, type = 'class')
+
+conmat_ft_wo_a4 <- confusionMatrix(ft_wo_a4_yhat, test_data$hospital_death)
+conmat_over_tree_wo_a4 <- confusionMatrix(over_tree_wo_a4_yhat, test_data$hospital_death)
+conmat_under_tree_wo_a4 <- confusionMatrix(under_tree_wo_a4_yhat, test_data$hospital_death)
+
+print(paste("First tree w/o Apache 4 Probability balanced accuracy:",round(conmat_ft_wo_a4$byClass["Balanced Accuracy"],2)))
+print(paste("Oversampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_over_tree_wo_a4$byClass["Balanced Accuracy"],2)))
+print(paste("Undersampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_under_tree_wo_a4$byClass["Balanced Accuracy"],2)))
+```
 
 Import data	                                                          Crawford
 Store data into a dataframe	                                          Crawford
@@ -123,6 +225,8 @@ Cleanse data                                                        	Funcheon
 #str(df)
 
 ```
+
+## Variable Selection with Random Forest
 
 ```{r}
 #Austin
