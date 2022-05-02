@@ -1,0 +1,324 @@
+---
+title: "Patient Survival Prediction Project"
+author: "Adam Crawford, Adam Baer, Austin Funcheon, Viraj Rane"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Data
+
+```{r}
+df <- read.csv("dataset.csv")
+
+#str(df)
+#summary(df)
+
+library("dplyr")
+library("ggpubr")
+library(tree)
+library(caret)
+library(randomForest)
+library(lattice)
+library(dplyr)
+library(lubridate)
+library(doParallel)
+library(smotefamily)
+library(ROSE)
+cl <- makePSOCKcluster(detectCores() -1)
+registerDoParallel(cl)
+
+library(ggplot2)
+#ggplot(df, aes(factor(hospital_death))) +
+#  geom_bar()
+```
+
+# Data Preparation
+
+
+```{r}
+# get rid of identifiers and random X column
+#temp removal of apache variables.
+#df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
+
+df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- df$apache_4a_hospital_death_prob <- df$apache_4a_icu_death_prob <- df$apache_3j_diagnosis <- df$apache_3j_diagnosis <- NULL
+
+# change columns to factors
+factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+             "intubated_apache","ventilated_apache","aids","cirrhosis",
+             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+             "lymphoma","solid_tumor_with_metastasis", "hospital_death")
+
+#factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+#             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+#             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+#             "intubated_apache","ventilated_apache","aids","cirrhosis",
+#             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+#             "lymphoma","solid_tumor_with_metastasis","apache_3j_bodysystem",
+#             "hospital_death")
+df[factors] <- lapply(df[factors], factor)
+
+#table(df$hospital_death)
+
+df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kill all the omits if we later find those factors are irrelevant. our dataset cuts in half ~Austin
+
+
+
+#dfBal <- ovun.sample(hospital_death~., data = df, method = "over", N = 70000)$data
+
+#df0Bal <- dfBal
+
+#summary(dfBal)
+
+#table(df$hospital_death)
+#table(dfBal$hospital_death)
+
+
+
+```
+
+```{r}
+df <- na.omit(df)
+dfBal <- na.omit(dfBal)
+```
+
+
+
+```{r}
+# split data into training data and testing data
+#these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
+set.seed(123)
+dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 11000)$data
+train <- sample(1:nrow(dfBal), nrow(dfBal)*0.7)
+train_data <- dfBal[train,]
+test_data <- dfBal[-train,]
+
+table(train_data$hospital_death)
+
+#dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 11000)$data
+#train_data0 <- train_data
+df0Bal <- dfBal
+train_data <- dfBal
+```
+
+```{r}
+library(tree)
+
+#this doesn't work
+first_tree <- tree(as.factor(hospital_death) ~., data = train_data)
+summary(first_tree)
+plot(first_tree)
+text(first_tree, cex = 0.75, col = 'red')
+```
+
+```{r}
+#Austin Fit a random forest for variable selection, run time ~7.5 minutes
+library(randomForest)
+#set.seed(123)
+start_t <- Sys.time()
+cat("",cat(" Variable selection Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+#run a prelim rf for variable summary. 
+rf_eval <- randomForest(hospital_death~., data = train_data,
+                           mtry = 5, importance = TRUE)
+
+rf_eval
+varImpPlot(rf_eval) #plot relevance plot
+
+finish_t <- Sys.time()
+cat("",cat("Variable selection Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat("Variable selection The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+
+```
+
+```{r} 
+#Austin Identify the lowest impact variables from the RF run
+rfImp <- importance(rf_eval)
+#rfImp
+
+rf_Imp_Sort <- as.data.frame.matrix(rfImp)
+#adds a column for accuracy*gini for overall variable impact
+rf_Imp_Sort$cross <- rf_Imp_Sort$MeanDecreaseAccuracy*rf_Imp_Sort$MeanDecreaseGini
+#rf_Imp_Sort
+#adds an overall rank of impact of variable, with bigger being biggest ranked impact, with 1 being lowest impact
+rf_Imp_Sort$rank <- rank(rf_Imp_Sort$cross)
+#rf_Imp_Sort
+
+#variables ranked by cross order
+rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
+#rf_Imp_SO
+#variable list sorted by importance. Accuracy * Gini
+```
+
+```{r} 
+#Check accuracy score against test data.
+rf_yhat <- predict(rf_eval, newdata = test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore <- postResample(rf_yhat, test_data$hospital_death)
+print(rfscore)
+```
+ Accuracy     Kappa 
+0.9261574 0.3220481 
+```{r}
+rfVarDrop <-rf_Imp_Sort
+#trim the bottom x predictors
+#rfVarDrop <- rfVarDrop %>% filter(rank <= 65)
+rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
+
+dropVar <- row.names(rfVarDrop) #Variables to drop list 
+
+#make a shorter list of variables from rf variable selection
+dfTrim <- df0[ , ! names(df0) %in% dropVar] 
+dfTrim <- na.omit(dfTrim)
+#dfTrim is experimental list.
+
+```
+
+```{r}
+#create new train and test data from rf selection
+train2 <- sample(1:nrow(dfTrim), nrow(dfTrim)*0.7)
+trim_train_data <- dfTrim[train2,]
+trim_test_data <- dfTrim[-train2,]
+#str(dfTrim)
+```
+
+```{r}
+start_t <- Sys.time()
+cat("",cat("Trimmed Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rf_eval2 <- randomForest(hospital_death~., data = trim_train_data,
+                           mtry = 5, importance = TRUE)
+
+rf_eval2
+varImpPlot(rf_eval2)
+
+finish_t <- Sys.time()
+cat("",cat("Trimmed Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat("Trimmed The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+```
+
+```{r} 
+#Check accuracy score
+rf_yhat2 <- predict(rf_eval2, newdata = trim_test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
+rfscore2
+#rfscore
+```
+
+ Accuracy     Kappa   lowest 50 predictors removed
+0.9295177 0.3744659
+ Accuracy     Kappa   lowest 60 predictors removed
+0.9272813 0.3754597
+Accuracy     Kappa    lowest 70 predictors removed
+0.9203867 0.3451922
+ Accuracy     Kappa    lowest 65 predictors removed
+0.9316949 0.3691730 
+
+```{r}
+table(df$hospital_death)
+```
+
+```{r}
+#Run Tune on RF Austin  took 95 minutes with 4:15
+#tuneGrid <- data.frame(mtry = 4:15)
+tuneGrid <- data.frame(mtry = 9:9)
+#tuneGrid value came out 9.
+
+
+control <- trainControl(method = 'cv', number = 5)
+# print out system time before training
+start_t <- Sys.time()
+cat("",cat("RFtune Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rftrim_tuned <- train(hospital_death ~ ., data = trim_train_data,
+                  method = 'rf',
+                  trControl = control,
+                  tuneGrid = tuneGrid)
+
+# print out system time after training
+finish_t <- Sys.time()
+cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+print(rftrim_tuned)
+
+#
+```
+RFtune Training started at: Fri Apr 29 5:13:10 PM 2022RFTune Training finished at: Fri Apr 29 6:48:32 PM 2022 RFTune The training process finished in 95.35552 minutesRandom Forest 
+
+42996 samples
+   50 predictor
+    2 classes: '0', '1' 
+
+No pre-processing
+Resampling: Cross-Validated (5 fold) 
+Summary of sample sizes: 34397, 34397, 34397, 34396, 34397 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa    
+   4    0.9273421  0.3179540
+   5    0.9275049  0.3288148
+   6    0.9281328  0.3437036
+   7    0.9281096  0.3470367
+   8    0.9280398  0.3514676
+   9    0.9283654  0.3562677
+  10    0.9280165  0.3565548
+  11    0.9282957  0.3599356
+  12    0.9282259  0.3625530
+  13    0.9280166  0.3602829
+  14    0.9279003  0.3596171
+  15    0.9282259  0.3656226
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was mtry = 9.
+```{r} 
+#Check accuracy score of RF tuned
+rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore_tuned <- postResample(rf_yhat_tuned, trim_test_data$hospital_death)
+rfscore_tuned
+
+print(rfscore_tuned)
+plot(rfscore_tuned)
+```
+ Accuracy     Kappa  65 removed
+0.9317824 0.3733778  
+
+```{r}
+#rownames(rfVarDrop)
+colnames(dfTrim)
+```
+Drop list: 
+ [1] "bmi"                         "elective_surgery"            "ethnicity"                   "gender"                      "height"                     
+ [6] "icu_admit_source"            "icu_id"                      "icu_stay_type"               "icu_type"                    "pre_icu_los_days"           
+[11] "weight"                      "apache_2_diagnosis"          "apache_post_operative"       "arf_apache"                  "gcs_eyes_apache"            
+[16] "gcs_motor_apache"            "gcs_unable_apache"           "gcs_verbal_apache"           "intubated_apache"            "map_apache"                 
+[21] "resprate_apache"             "ventilated_apache"           "d1_diasbp_max"               "d1_diasbp_noninvasive_max"   "d1_mbp_max"                 
+[26] "d1_mbp_min"                  "d1_mbp_noninvasive_max"      "d1_mbp_noninvasive_min"      "d1_resprate_max"             "d1_resprate_min"            
+[31] "d1_spo2_max"                 "d1_sysbp_max"                "d1_sysbp_noninvasive_max"    "h1_diasbp_max"               "h1_diasbp_min"              
+[36] "h1_diasbp_noninvasive_max"   "h1_diasbp_noninvasive_min"   "h1_heartrate_max"            "h1_heartrate_min"            "h1_mbp_max"                 
+[41] "h1_mbp_min"                  "h1_mbp_noninvasive_max"      "h1_mbp_noninvasive_min"      "h1_resprate_max"             "h1_resprate_min"            
+[46] "h1_spo2_max"                 "h1_spo2_min"                 "h1_sysbp_max"                "h1_sysbp_min"                "h1_sysbp_noninvasive_max"   
+[51] "h1_sysbp_noninvasive_min"    "d1_glucose_max"              "d1_glucose_min"              "d1_potassium_max"            "d1_potassium_min"           
+[56] "aids"                        "cirrhosis"                   "diabetes_mellitus"           "hepatic_failure"             "immunosuppression"          
+[61] "leukemia"                    "lymphoma"                    "solid_tumor_with_metastasis" "apache_3j_bodysystem"        "apache_2_bodysystem"  
+
+Keep List:
+ [1] "age"                           "apache_3j_diagnosis"           "heart_rate_apache"             "temp_apache"                   "d1_diasbp_min"                
+ [6] "d1_diasbp_noninvasive_min"     "d1_heartrate_max"              "d1_heartrate_min"              "d1_spo2_min"                   "d1_sysbp_min"                 
+[11] "d1_sysbp_noninvasive_min"      "d1_temp_max"                   "d1_temp_min"                   "apache_4a_hospital_death_prob" "apache_4a_icu_death_prob"     
+[16] "hospital_death"  
+
+```{r}
+stopCluster(cl)
+```
