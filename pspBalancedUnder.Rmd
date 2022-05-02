@@ -325,10 +325,11 @@ The final value used for the model was mtry = 12.
 rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
 #accuracy score of mtry 5 rf used for variable selection
 rfscore_tuned <- postResample(rf_yhat_tuned, trim_test_data$hospital_death)
-rfscore_tuned
+#rfscore_tuned
 
 print(rfscore_tuned)
-plot(rfscore_tuned)
+
+confusionMatrix(rf_yhat_tuned, trim_test_data$hospital_death)
 ```
 
 ```{r}
