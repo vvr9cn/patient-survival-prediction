@@ -30,6 +30,7 @@ library(smotefamily)
 library(ROSE)
 cl <- makePSOCKcluster(detectCores() -1)
 registerDoParallel(cl)
+set.seed(123)
 
 library(ggplot2)
 #ggplot(df, aes(factor(hospital_death))) +
@@ -40,12 +41,15 @@ library(ggplot2)
 
 
 ```{r}
-# get rid of identifiers and random X column
-#temp removal of apache variables.
+
+#keep original copy of df for trim work.
+dfOriginal <- df
 #df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
 
+# get rid of identifiers and random X column
+#removal of apache variables.
 df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- df$apache_4a_hospital_death_prob <- df$apache_4a_icu_death_prob <- df$apache_3j_diagnosis <- df$apache_3j_diagnosis <- NULL
-
+df0 <- df
 # change columns to factors
 factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
              "icu_stay_type","icu_type","apache_post_operative","arf_apache",
@@ -84,7 +88,6 @@ df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kil
 
 ```{r}
 df <- na.omit(df)
-dfBal <- na.omit(dfBal)
 ```
 
 
@@ -92,21 +95,22 @@ dfBal <- na.omit(dfBal)
 ```{r}
 # split data into training data and testing data
 #these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
-set.seed(123)
-dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 11000)$data
-train <- sample(1:nrow(dfBal), nrow(dfBal)*0.7)
-train_data <- dfBal[train,]
-test_data <- dfBal[-train,]
+
+train <- sample(1:nrow(df), nrow(df)*0.7)
+train_data <- df[train,]
+test_data <- df[-train,]
 
 table(train_data$hospital_death)
+train_data0 <- train_data
+train_data0
+dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 7400)$data
 
-#dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 11000)$data
-#train_data0 <- train_data
 df0Bal <- dfBal
 train_data <- dfBal
 ```
 
 ```{r}
+#Crawford
 library(tree)
 
 #this doesn't work
@@ -158,19 +162,19 @@ rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
 ```
 
 ```{r} 
-#Check accuracy score against test data.
+#Austin Check accuracy score against test data.
 rf_yhat <- predict(rf_eval, newdata = test_data)
 #accuracy score of mtry 5 rf used for variable selection
 rfscore <- postResample(rf_yhat, test_data$hospital_death)
 print(rfscore)
 ```
  Accuracy     Kappa 
-0.9261574 0.3220481 
+0.7668741 0.2620111 
 ```{r}
+#Austin 
 rfVarDrop <-rf_Imp_Sort
 #trim the bottom x predictors
-#rfVarDrop <- rfVarDrop %>% filter(rank <= 65)
-rfVarDrop <- rfVarDrop %>% filter(rank <= 30)
+rfVarDrop <- rfVarDrop %>% filter(rank <= 25)
 
 dropVar <- row.names(rfVarDrop) #Variables to drop list 
 
@@ -182,14 +186,23 @@ dfTrim <- na.omit(dfTrim)
 ```
 
 ```{r}
-#create new train and test data from rf selection
+#Austin create new train and test data from rf selection, with undersampling enabled for training set.
 train2 <- sample(1:nrow(dfTrim), nrow(dfTrim)*0.7)
 trim_train_data <- dfTrim[train2,]
 trim_test_data <- dfTrim[-train2,]
 #str(dfTrim)
+
+table(trim_train_data$hospital_death)
+trim_train_data0 <- trim_train_data
+#trim_train_data0
+trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 9200)$data
+
+df0Bal <- trim_dfBal
+trim_train_data <- trim_dfBal
 ```
 
 ```{r}
+#Austin  #30 second run time with 4 cores
 start_t <- Sys.time()
 cat("",cat("Trimmed Training started at:",format(start_t, "%a %b %d %X %Y")))
 
@@ -206,6 +219,7 @@ cat("Trimmed The training process finished in",difftime(finish_t,start_t,units="
 ```
 
 ```{r} 
+#Austin
 #Check accuracy score
 rf_yhat2 <- predict(rf_eval2, newdata = trim_test_data)
 #accuracy score of mtry 5 rf used for variable selection
@@ -213,24 +227,46 @@ rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
 rfscore2
 #rfscore
 ```
-
- Accuracy     Kappa   lowest 50 predictors removed
-0.9295177 0.3744659
- Accuracy     Kappa   lowest 60 predictors removed
-0.9272813 0.3754597
-Accuracy     Kappa    lowest 70 predictors removed
-0.9203867 0.3451922
- Accuracy     Kappa    lowest 65 predictors removed
-0.9316949 0.3691730 
-
+ Accuracy     Kappa       
+0.7668741 0.2620111         first pass
+0.7796420 0.2787223         with bottom 30 var dropped
+0.7757662 0.2726710         35
+0.7840903 0.2901965         25
+0.7684269 0.2677715         50
+0.6134630 0.1374592         70
+0.7532852 0.2252227         65
+0.7641030 0.2564636         60
 ```{r}
-table(df$hospital_death)
+print("Drop List")
+rownames(rfVarDrop)
+
+print("Keep List")
+colnames(dfTrim)
 ```
 
+[1] "Drop List"
+ [1] "bmi"                         "elective_surgery"            "ethnicity"                   "gender"                      "height"                     
+ [6] "icu_admit_source"            "icu_id"                      "icu_stay_type"               "icu_type"                    "pre_icu_los_days"           
+[11] "weight"                      "apache_2_diagnosis"          "apache_post_operative"       "arf_apache"                  "gcs_unable_apache"          
+[16] "heart_rate_apache"           "intubated_apache"            "map_apache"                  "resprate_apache"             "d1_diasbp_max"              
+[21] "d1_diasbp_min"               "d1_diasbp_noninvasive_max"   "d1_diasbp_noninvasive_min"   "d1_heartrate_min"            "d1_mbp_max"                 
+[26] "d1_mbp_noninvasive_max"      "d1_mbp_noninvasive_min"      "d1_resprate_max"             "d1_resprate_min"             "d1_spo2_max"                
+[31] "d1_sysbp_max"                "d1_sysbp_noninvasive_max"    "d1_temp_max"                 "h1_diasbp_max"               "h1_diasbp_min"              
+[36] "h1_diasbp_noninvasive_max"   "h1_diasbp_noninvasive_min"   "h1_heartrate_max"            "h1_heartrate_min"            "h1_mbp_max"                 
+[41] "h1_mbp_min"                  "h1_mbp_noninvasive_max"      "h1_mbp_noninvasive_min"      "h1_resprate_max"             "h1_resprate_min"            
+[46] "h1_spo2_max"                 "h1_spo2_min"                 "h1_sysbp_max"                "h1_sysbp_min"                "h1_sysbp_noninvasive_max"   
+[51] "h1_sysbp_noninvasive_min"    "d1_glucose_max"              "d1_glucose_min"              "d1_potassium_max"            "d1_potassium_min"           
+[56] "aids"                        "cirrhosis"                   "diabetes_mellitus"           "hepatic_failure"             "immunosuppression"          
+[61] "leukemia"                    "lymphoma"                    "solid_tumor_with_metastasis" "apache_3j_bodysystem"        "apache_2_bodysystem"        
+[1] "Keep List"
+ [1] "age"                      "gcs_eyes_apache"          "gcs_motor_apache"         "gcs_verbal_apache"        "temp_apache"              "ventilated_apache"       
+ [7] "d1_heartrate_max"         "d1_mbp_min"               "d1_spo2_min"              "d1_sysbp_min"             "d1_sysbp_noninvasive_min" "d1_temp_min"             
+[13] "hospital_death" 
+
 ```{r}
-#Run Tune on RF Austin  took 95 minutes with 4:15
+#Austin Run Tune on RF  took 8 minute s with 4:15
+tuneGrid <- data.frame(mtry = 4:15)
 #tuneGrid <- data.frame(mtry = 4:15)
-tuneGrid <- data.frame(mtry = 9:9)
 #tuneGrid value came out 9.
 
 
@@ -254,33 +290,36 @@ print(rftrim_tuned)
 
 #
 ```
-RFtune Training started at: Fri Apr 29 5:13:10 PM 2022RFTune Training finished at: Fri Apr 29 6:48:32 PM 2022 RFTune The training process finished in 95.35552 minutesRandom Forest 
+65 removed
+RFtune Training started at: Mon May 02 4:20:08 PM 2022
+RFTune Training finished at: Mon May 02 4:22:07 PM 2022 
+RFTune The training process finished in 1.975234 minutes
 
-42996 samples
-   50 predictor
-    2 classes: '0', '1' 
+Random Forest 
+
+9200 samples
+  12 predictor
+   2 classes: '0', '1' 
 
 No pre-processing
 Resampling: Cross-Validated (5 fold) 
-Summary of sample sizes: 34397, 34397, 34397, 34396, 34397 
+Summary of sample sizes: 7360, 7360, 7360, 7360, 7360 
 Resampling results across tuning parameters:
 
   mtry  Accuracy   Kappa    
-   4    0.9273421  0.3179540
-   5    0.9275049  0.3288148
-   6    0.9281328  0.3437036
-   7    0.9281096  0.3470367
-   8    0.9280398  0.3514676
-   9    0.9283654  0.3562677
-  10    0.9280165  0.3565548
-  11    0.9282957  0.3599356
-  12    0.9282259  0.3625530
-  13    0.9280166  0.3602829
-  14    0.9279003  0.3596171
-  15    0.9282259  0.3656226
+   7    0.7502174  0.5003972
+   8    0.7501087  0.5001691
+   9    0.7490217  0.4979986
+  10    0.7505435  0.5010415
+  11    0.7486957  0.4973495
+  12    0.7496739  0.4992982
 
 Accuracy was used to select the optimal model using the largest value.
-The final value used for the model was mtry = 9.
+The final value used for the model was mtry = 10.
+
+
+
+
 ```{r} 
 #Check accuracy score of RF tuned
 rf_yhat_tuned <- predict(rftrim_tuned, newdata = trim_test_data)
@@ -291,33 +330,6 @@ rfscore_tuned
 print(rfscore_tuned)
 plot(rfscore_tuned)
 ```
- Accuracy     Kappa  65 removed
-0.9317824 0.3733778  
-
-```{r}
-#rownames(rfVarDrop)
-colnames(dfTrim)
-```
-Drop list: 
- [1] "bmi"                         "elective_surgery"            "ethnicity"                   "gender"                      "height"                     
- [6] "icu_admit_source"            "icu_id"                      "icu_stay_type"               "icu_type"                    "pre_icu_los_days"           
-[11] "weight"                      "apache_2_diagnosis"          "apache_post_operative"       "arf_apache"                  "gcs_eyes_apache"            
-[16] "gcs_motor_apache"            "gcs_unable_apache"           "gcs_verbal_apache"           "intubated_apache"            "map_apache"                 
-[21] "resprate_apache"             "ventilated_apache"           "d1_diasbp_max"               "d1_diasbp_noninvasive_max"   "d1_mbp_max"                 
-[26] "d1_mbp_min"                  "d1_mbp_noninvasive_max"      "d1_mbp_noninvasive_min"      "d1_resprate_max"             "d1_resprate_min"            
-[31] "d1_spo2_max"                 "d1_sysbp_max"                "d1_sysbp_noninvasive_max"    "h1_diasbp_max"               "h1_diasbp_min"              
-[36] "h1_diasbp_noninvasive_max"   "h1_diasbp_noninvasive_min"   "h1_heartrate_max"            "h1_heartrate_min"            "h1_mbp_max"                 
-[41] "h1_mbp_min"                  "h1_mbp_noninvasive_max"      "h1_mbp_noninvasive_min"      "h1_resprate_max"             "h1_resprate_min"            
-[46] "h1_spo2_max"                 "h1_spo2_min"                 "h1_sysbp_max"                "h1_sysbp_min"                "h1_sysbp_noninvasive_max"   
-[51] "h1_sysbp_noninvasive_min"    "d1_glucose_max"              "d1_glucose_min"              "d1_potassium_max"            "d1_potassium_min"           
-[56] "aids"                        "cirrhosis"                   "diabetes_mellitus"           "hepatic_failure"             "immunosuppression"          
-[61] "leukemia"                    "lymphoma"                    "solid_tumor_with_metastasis" "apache_3j_bodysystem"        "apache_2_bodysystem"  
-
-Keep List:
- [1] "age"                           "apache_3j_diagnosis"           "heart_rate_apache"             "temp_apache"                   "d1_diasbp_min"                
- [6] "d1_diasbp_noninvasive_min"     "d1_heartrate_max"              "d1_heartrate_min"              "d1_spo2_min"                   "d1_sysbp_min"                 
-[11] "d1_sysbp_noninvasive_min"      "d1_temp_max"                   "d1_temp_min"                   "apache_4a_hospital_death_prob" "apache_4a_icu_death_prob"     
-[16] "hospital_death"  
 
 ```{r}
 stopCluster(cl)
