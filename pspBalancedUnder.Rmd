@@ -290,15 +290,10 @@ print(rftrim_tuned)
 
 #
 ```
-65 removed
-RFtune Training started at: Mon May 02 4:20:08 PM 2022
-RFTune Training finished at: Mon May 02 4:22:07 PM 2022 
-RFTune The training process finished in 1.975234 minutes
-
-Random Forest 
+RFtune Training started at: Mon May 02 4:37:32 PM 2022RFTune Training finished at: Mon May 02 4:48:52 PM 2022 RFTune The training process finished in 11.34424 minutesRandom Forest 
 
 9200 samples
-  12 predictor
+  52 predictor
    2 classes: '0', '1' 
 
 No pre-processing
@@ -307,16 +302,21 @@ Summary of sample sizes: 7360, 7360, 7360, 7360, 7360
 Resampling results across tuning parameters:
 
   mtry  Accuracy   Kappa    
-   7    0.7502174  0.5003972
-   8    0.7501087  0.5001691
-   9    0.7490217  0.4979986
-  10    0.7505435  0.5010415
-  11    0.7486957  0.4973495
-  12    0.7496739  0.4992982
+   4    0.7811957  0.5458403
+   5    0.7827174  0.5489895
+   6    0.7841304  0.5520379
+   7    0.7842391  0.5527422
+   8    0.7846739  0.5538062
+   9    0.7831522  0.5508135
+  10    0.7845652  0.5534805
+  11    0.7843478  0.5535046
+  12    0.7864130  0.5576110
+  13    0.7846739  0.5541494
+  14    0.7835870  0.5521621
+  15    0.7836957  0.5524458
 
 Accuracy was used to select the optimal model using the largest value.
-The final value used for the model was mtry = 10.
-
+The final value used for the model was mtry = 12.
 
 
 
