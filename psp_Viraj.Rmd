@@ -229,6 +229,7 @@ sum(is.na(data$weight))
 
 
 ```{r}
+#additional code
 # mode function
 getmode <- function(x, na.rm= FALSE){
   u <- unique(x)
@@ -283,11 +284,11 @@ pairs(~hospital_death + apache_2_diagnosis + apache_3j_diagnosis + heart_rate_ap
 ```{r}
 # scatter plot apache 4a hospital death probability and hospital death
 
-ggplot(data, aes(apache_4a_icu_death_prob,apache_4a_hospital_death_prob)) + geom_point(alpha = 0.3) + geom_smooth(method = lm) + labs(x = "Apache 4a ICU death prob", y = "Apache 4a hospital death prob")
+ggplot(data, aes(apache_2_diagnosis,apache_3j_diagnosis)) + geom_point(alpha = 0.3) + geom_smooth(method = lm) + labs(x = "Apache 2 diagnosis", y = "Apache 3 diagnosis") + scale_x_log10() + scale_y_log10()
 ```
 
 # Correlation plot
-```{r}
+```{r, fig.height=5, fig.width=5}
 # correlation plot
 library(corrplot)
 data_plot <- data %>%
@@ -299,13 +300,13 @@ corrplot(M, method= "circle")
 ```
 # Grouped box plots
 
-```{r}
+```{r, fig.height=3, fig.width=5}
 # Box plots of Apache scores
 library(reshape)
-bplot <- melt(data = data_plot, measure.vars = c(11:15), variable_name = "variable")
+bplot <- melt(data = data, measure.vars = c(11,12,17,19,20), variable_name = "variable")
 
 ggplot(bplot, aes(x = variable, y = value, fill = "icu_admit_source")) +
-  geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores")
+  geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores") + labs(x = "Apache Variables", y = "Values")
 ```
 
 # Wordclouds
@@ -341,13 +342,13 @@ wordcloud(suncloud, scale = c(10,0.7),
 
 ```{r}
 library(doParallel)
-cl <- makePSOCKcluster(detectCores() - 1)
-registerDoParallel(cl)
+clstr <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(clstr)
 ```
 
 Viewing the death ratio of the number of patients admitted in a hospital, where 1 = dead, 0 = living
 ```{r}
-ggplot(data, aes(as.factor(hospital_death))) + geom_bar() + labs(x = "Hospital death")
+ggplot(data, aes(as.factor(hospital_death), fill = hospital_death)) + geom_bar() + labs(x = "Hospital death")
 ```
 
 From the above bar plot, we can see that the data in the response variable hospital_death is imbalanced, as the number of observations are much larger, therefore we choose to undersample the data to handling the imbalance issue.
@@ -390,37 +391,32 @@ ggplot(data = usamp_data, aes(fill = Class))+
            panel.background = element_blank())
 ```
 
+# Data Partition (undersampled)
+
+```{r}
+# Data partition: randomly split the data set into a train (70%) and a test set (30%)
+index <- 1:nrow(usamp_data)
+set.seed(123)
+train_index <- sample(index, round(length(index)*0.7))
+usamp_train_set <- usamp_data[train_index,]
+usamp_test_set <- usamp_data[-train_index,]
+```
+
 
 # Model1: K- nearest neighbors to predict whether a patient admitted in the hospital will survive or not?
 
 ```{r}
 # Basic KNN model
-# Data partition: randomly split the dataset into a train (70%) and a test set (30%)
-index <- 1:nrow(usamp_data)
-set.seed(123)
-train_index <- sample(index, round(length(index)*0.7))
-train_set <- usamp_data[train_index,]
-test_set <- usamp_data[-train_index,]
-```
-
-```{r}
-
-#train_set$hospital_death <- as.factor(ifelse(train_set$hospital_death=='Yes', 1, 0))
-#test_set$hospital_death <- as.factor(ifelse(test_set$hospital_death=='Yes', 1, 0))
-```
-
-
-```{r}
 library(class)
 # Select the true values of the response in training set
-cl <- train_set[,"hospital_death"]
+cl <- usamp_train_set[,"hospital_death"]
 # Using knn for k = 5, 20
-knn5 <- knn(train_set[,-1],test_set[,-1], cl, k = 5)
+knn5 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 5)
 ```
 
 ```{r}
 # Confusion matrix and statistics, k = 5
-confusionMatrix(as.factor(knn5),as.factor(test_set$hospital_death),positive = "0")
+confusionMatrix(as.factor(knn5),as.factor(usamp_test_set$hospital_death),positive = "0")
 ```
 
 # Hyper parameter tuning for knn
@@ -430,10 +426,10 @@ sensitivity <-NULL
 specificity <- NULL
   
 for(i in 1:30) {
-  knn.fit <- knn(train_set[,-1],test_set[,-1], cl, k = i)
-  accuracy <- c(accuracy, mean(knn.fit == test_set$hospital_death))
-  sensitivity <- c(sensitivity, sensitivity(as.factor(knn.fit),as.factor(test_set$hospital_death), positive = "1"))
-  specificity <- c(specificity, specificity(as.factor(knn.fit),as.factor(test_set$hospital_death), negative = "0"))
+  knn.fit <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = i)
+  accuracy <- c(accuracy, mean(knn.fit == usamp_test_set$hospital_death))
+  sensitivity <- c(sensitivity, sensitivity(as.factor(knn.fit),as.factor(usamp_test_set$hospital_death), positive = "1"))
+  specificity <- c(specificity, specificity(as.factor(knn.fit),as.factor(usamp_test_set$hospital_death), negative = "0"))
 }
 
 balanced_accuracy = (sensitivity + specificity)/2
@@ -457,14 +453,15 @@ The results of the plot show that the tuned hyper parameters with model performa
 
 ```{r}
 # Using optimal parameter k = 10 
-knn10 <- knn(train_set[,-1],test_set[,-1], cl, k = 10)
+knn12 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 12)
 ```
 
 ```{r}
-confusionMatrix(as.factor(knn10),as.factor(test_set$hospital_death),positive = "0")
+confusionMatrix(as.factor(knn12),as.factor(usamp_test_set$hospital_death),positive = "0")
 ```
 
-From the optimal parameter result, we can see that k with optimal parameter as 10 has not made much improvement in the result. **Therefore the chance of an admitted patient surviving in a hospital is 68%**  
+From the optimal parameter result, we can see that k with optimal parameter as 12 has not made much improvement in the result. **Therefore the chance of an admitted patient surviving in a hospital is 68%**  
+
 
 #OverSampling data
 
@@ -507,6 +504,17 @@ ggplot(data = osamp_data, aes(fill = Class))+
            panel.background = element_blank())
 ```
 
+# Data Partition (oversampled)
+
+```{r}
+# Data partition: randomly split the data set into a train (70%) and a test set (30%)
+index <- 1:nrow(osamp_data)
+set.seed(123)
+train_index <- sample(index, round(length(index)*0.7))
+osamp_train_set <- osamp_data[train_index,]
+osamp_test_set <- osamp_data[-train_index,]
+```
+
 
 # Model2: Logistic Regression
 
@@ -522,11 +530,11 @@ summary(logit1.fit)
 # Calculate predicted probability
 logit1.prob <- predict(logit1.fit, type = "response")
 
-plot(x = data$hospital_death, y = ifelse(data$hospital_death == "Yes", 1, 0), 
+plot(x = osamp_data$hospital_death, y = ifelse(osamp_data$hospital_death == "Yes", 1, 0), 
      col = "orange", xlab = "Apache 2 diagnosis", ylab = "Probability of Death")
 
-points(x = data$hospital_death[order(data$hospital_death)], 
-       y = logit1.prob[order(data$hospital_death)], 
+points(x = osamp_data$hospital_death[order(osamp_data$hospital_death)], 
+       y = logit1.prob[order(osamp_data$hospital_death)], 
        type = "l", col="blue", lwd = 2)
 
 
@@ -536,7 +544,7 @@ points(x = data$hospital_death[order(data$hospital_death)],
 ```{r}
 # Logistic regression
 logit2.fit <- glm(hospital_death ~ apache_3j_diagnosis,
-                  family=binomial(link='logit'),data = osamp_data)
+                  family=binomial(link='logit'),data = osamp_data) #oversampled
 
 summary(logit2.fit)
 ```
@@ -631,20 +639,13 @@ specificity(factor(logit.pred),as.factor(osamp_data$hospital_death), negative = 
 # logistic regression "Out of sample prediction"
 
 Using 70%-30% split with sample() method for random sampling with over sampled data
-```{r}
-index <- 1:nrow(osamp_data)
-set.seed(123)
-train_index <- sample(index, round(length(index)*0.7))
-train_set <- osamp_data[train_index,]
-test_set <- osamp_data[-train_index,]
-```
 
 ```{r}
 # Train the logistic regression model
 logit.fit.train <- glm(hospital_death ~ apache_2_diagnosis + 
                          apache_3j_diagnosis + heart_rate_apache + 
                          map_apache + resprate_apache + temp_apache, 
-                       family=binomial(link='logit'),data = train_set)
+                       family=binomial(link='logit'),data = osamp_train_set)
 
 summary(logit.fit.train)
 ```
@@ -657,7 +658,7 @@ stargazer(logit.fit, logit.fit.train, type = "text",star.cutoffs = c(0.05, 0.01,
 
 ```{r}
 # Calculate probability of default
-test_probs <- predict(logit.fit.train, newdata = test_set, type="response")
+test_probs <- predict(logit.fit.train, newdata = osamp_test_set, type="response")
 
 # Show the first 10 values
 test_probs[1:10]
@@ -668,12 +669,172 @@ test_probs[1:10]
 test_pred <- ifelse(test_probs >.5, "1", "0")
 
 # Show confusion matrix
-confusionMatrix(factor(test_pred),as.factor(test_set$hospital_death))
+confusionMatrix(factor(test_pred),as.factor(osamp_test_set$hospital_death))
+```
+
+
+# Model 5: Artificial Neural networks
+
+**Using ANN, we will use model prediction method to answer how many days will a patient be admitted to the ICU ward ?**
+
+We take the following as our response variable,
+
+●	pre_icu_los_days: The length of stay of the patient between hospital admission and unit admission
+
+some data preProcessing before we make use of the reponse variable
+```{r}
+# rounding and using absolute values
+pre_icu_los <- round(abs(data$pre_icu_los_days), digits = 2)
+# checking for null values, if any
+sum(is.na(pre_icu_los))
+newdata <- cbind(data, pre_icu_los)
+```
+
+
+Splitting the data with a single 80% 20% split
+
+```{r}
+library(caret)
+set.seed(1234)
+ann_trainIndex <- createDataPartition(newdata$pre_icu_los, p = .8, list = FALSE)
+
+ann_train_set <- newdata[ ann_trainIndex,]
+ann_test_set <- newdata[-ann_trainIndex,]
+
+nrow(ann_train_set)
+nrow(ann_test_set)
+```
+
+
+First we'll normalize the data. We normalize the data in the range [0,1], using preProcess() method we normalize the variables.
+```{r}
+# calculate the pre-process parameters from the training dataset
+preprocessParams <- preProcess(ann_train_set, method = c("range")) # range- (normalizing variables in the range 0 to 1)
+
+# summarize transform parameters
+print(preprocessParams)
+```
+
+```{r, include=FALSE}
+# transform the training dataset using the parameters
+train_scaled <- predict(preprocessParams, ann_train_set)
+
+# summarize the transformed dataset
+summary(train_scaled)
+```
+
+Using the same parameters to transform the test dataset.
+
+```{r}
+# transform the test dataset using the parameters
+test_scaled <- predict(preprocessParams, ann_test_set)
+
+# summarize the transformed dataset
+summary(test_scaled)
+```
+
+# Fitting ANN model
+
+Using neuralnet() method to train the neural network model.
+```{r}
+library(neuralnet)
+
+f <- as.formula(pre_icu_los ~ icu_admit_source + icu_stay_type + icu_type + apache_2_diagnosis + apache_3j_diagnosis + gcs_eyes_apache + gcs_motor_apache + gcs_verbal_apache + heart_rate_apache + map_apache + resprate_apache + temp_apache + d1_diasbp_max + d1_diasbp_min + d1_heartrate_max + d1_heartrate_min + d1_mbp_max + d1_mbp_min + d1_resprate_max + d1_resprate_min + d1_spo2_max + d1_spo2_min + d1_sysbp_max + d1_sysbp_min + d1_temp_max + d1_temp_min + h1_diasbp_max + h1_diasbp_min + h1_heartrate_max + h1_heartrate_min + h1_mbp_max + h1_mbp_min + h1_resprate_max + h1_resprate_min + h1_spo2_max + h1_spo2_min + h1_sysbp_max + h1_sysbp_min)
+
+# Fit a neural network model with 2 hidden layers
+nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = c(5,3), linear.output=TRUE) # 45- 50 mins
+
+# Show results
+summary(nn_fit_2)
+
+```
+
+
+```{r, fig.height=6, fig.width=7}
+plot(nn_fit_2,rep="best", cex=0.8)
+```
+
+```{r}
+# Fit a neural network model with 1 hidden layer
+nn_fit_1 <- neuralnet(f, data = train_scaled, hidden = 5) # 20 mins
+
+# Show results
+summary(nn_fit_1)
+```
+
+```{r,fig.height=6, fig.width=7}
+#plotting neural net model with 5 hidden layers
+plot(nn_fit_1, rep="best",cex=0.8)
+```
+
+# Evaluating Predictive Performance of the Two-Hidden-Layer Model
+
+We use compute() method in the neuralnet package for predicting the performance.
+
+```{r}
+# Computing the outputs of all neurons for specific arbitrary co variate vectors given a trained neural network
+pred2_norm <- compute(nn_fit_2, test_scaled[-1])
+pred2_norm <- pred2_norm$net.result
+```
+
+```{r}
+# Plot the normalized pre ICU los and predicted normalized pre ICU los
+plot(test_scaled$pre_icu_los,pred2_norm)
+```
+
+```{r}
+# Transform the normalized pre ICU los prediction to original scale
+pred2 <- pred2_norm*(max(ann_train_set$pre_icu_los) 
+                     -min(ann_train_set$pre_icu_los)) + min(newdata$pre_icu_los)
+
+```
+
+```{r}
+# Plot the pre ICU los and predicted pre ICU los
+plot(ann_test_set$pre_icu_los,pred2)
+```
+
+Calculating the prediction performance.
+```{r}
+options(digits = 3)
+postResample(pred2, ann_test_set$pre_icu_los)
+```
+
+# Evaluating Predictive Performance of the One-Hidden-Layer Model
+
+```{r}
+# Computes the outputs of all neurons for specific arbitrary co variate vectors given a trained neural network
+pred1_norm <- compute(nn_fit_1, test_scaled[-1])
+pred1_norm <- pred1_norm$net.result
+```
+
+```{r}
+# Plot the normalized pre ICU los and predicted normalized pre ICU los
+plot(test_scaled$pre_icu_los,pred1_norm)
+```
+
+```{r}
+# Transform the normalized pre ICU los prediction to original scale
+pred1 <- pred1_norm*(max(ann_train_set$pre_icu_los)
+                     - min(ann_train_set$pre_icu_los))
+         + min(ann_train_set$pre_icu_los)
+```
+
+```{r}
+# Plot the pre ICU los and predicted pre ICU los
+plot(ann_test_set$pre_icu_los,pred1)
+```
+
+Calculating the prediction performance.
+
+```{r}
+options(scipen=999)
+postResample(pred1, ann_test_set$pre_icu_los)
 ```
 
 
 
 ```{r}
-stopCluster(cl)
+stopCluster(clstr)
 ```
 
