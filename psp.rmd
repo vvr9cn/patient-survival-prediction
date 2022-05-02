@@ -26,6 +26,8 @@ library(lattice)
 library(dplyr)
 library(lubridate)
 library(doParallel)
+library(e1071)
+library(ROSE)
 cl <- makePSOCKcluster(detectCores() -1)
 registerDoParallel(cl)
 
@@ -59,6 +61,13 @@ df <- na.omit(df)
 ```
 
 ```{r}
+# use confusion matrix on apache death probability and hospital_death and degenerate model
+confusionMatrix(as.factor(ifelse(df$apache_4a_hospital_death_prob>.5,1,0)),df$hospital_death)
+confusionMatrix(as.factor(ifelse(df$apache_4a_icu_death_prob>.5,1,0)),df$hospital_death)
+confusionMatrix(as.factor(ifelse(df$apache_4a_icu_death_prob>-1.1,1,0)),df$hospital_death)
+```
+
+```{r}
 # split data into training data and testing data
 #these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
 set.seed(123)
@@ -68,13 +77,33 @@ test_data <- df[-train,]
 ```
 
 ```{r}
+# trying to use over sampling
+table(df$hospital_death)
+over <- ovun.sample(hospital_death~., data = df, method = "over", N = 105312)$data
+colnames(overbalanced) <- colnames(df)
+table(over$hospital_death)
+confusionMatrix(as.factor(ifelse(over$apache_4a_hospital_death_prob>.5,1,0)),over$hospital_death)
+confusionMatrix(as.factor(ifelse(over$apache_4a_icu_death_prob>.5,1,0)),over$hospital_death)
+```
+
+```{r}
 library(tree)
 
-#this doesn't work
 first_tree <- tree(as.factor(hospital_death) ~., data = train_data)
 summary(first_tree)
 plot(first_tree)
 text(first_tree, cex = 0.75, col = 'red')
+
+balanced_tree <- tree(as.factor(hospital_death) ~., data = over)
+summary(balanced_tree)
+plot(balanced_tree)
+text(balanced_tree, cex = 0.75, col = 'red')
+
+ft_yhat <- predict(first_tree, newdata = test_data, type = 'class')
+bt_yhat <- predict(balanced_tree, newdata = test_data, type = 'class')
+
+confusionMatrix(ft_yhat, test_data$hospital_death)
+confusionMatrix(bt_yhat, test_data$hospital_death)
 ```
 
 
