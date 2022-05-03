@@ -870,7 +870,7 @@ The first decision tree has the highest Rsquared, so it is mostly likely the bes
 fit and prediction model for the hospital death probability among the three decision
 trees.
 
-## Simple Decision Trees to Predict Apache Hospital Death Probability
+## Simple Decision Trees to Predict Apache ICU Death Probability
 
 ```{r}
 train_data_wo_hosp <- as.data.frame(subset(train_data,select = -apache_4a_hospital_death_prob))
