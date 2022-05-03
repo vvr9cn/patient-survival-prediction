@@ -1,0 +1,1266 @@
+---
+title: "Patient Survival Prediction Project"
+author: "Adam Crawford, Adam Baer, Austin Funcheon, Viraj Rane"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Preparation
+
+```{r}
+# Importing all libraries
+library(caret)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(tree)
+library(ROSE)
+```
+
+# 1. Load the Data
+```{r}
+df <- read.csv("dataset.csv")
+# view the structure of data
+str(df)
+```
+
+# Data Cleaning
+
+Dropping all irrelevant columns / selecting all valid columns in the data set.
+
+●	ethnicity: The common national or cultural tradition which the person belongs to
+**Ethnicity has no significance in predicting patient's survival**
+
+●	encounter_id - Unique identifier associated with a patient unit stay
+●	patient_id: Unique identifier associated with a patient
+●	hospital_id: Unique identifier associated with a hospital
+●	icu_id: A unique identifier for the unit to which the patient was admitted
+**The above variables that represent identifications and will be of no use to us.**
+
+●	apache_post_operative: The APACHE operative status; 1 for post-operative, 0 for non-operative
+**The variable is of low importance justifying apache operative status as yes or no**
+
+●	gcs_unable_apache: Whether the Glasgow Coma Scale was unable to be assessed due to patient sedation
+**The above apache variables seem non-critical to be considered for predictive purpose.**
+
+●	d1_diasbp_noninvasive_max: The patient's highest diastolic blood pressure during the first 24 hours of their unit stay, non-invasively measured
+●	d1_diasbp_noninvasive_min: The patient's lowest diastolic blood pressure during the first 24 hours of their unit stay, non-invasively measured
+
+●	d1_sysbp_noninvasive_max: The patient's highest systolic blood pressure during the first 24 hours of their unit stay, invasively measured
+●	d1_sysbp_noninvasive_min: The patient's lowest systolic blood pressure during the first 24 hours of their unit stay, invasively measured
+
+●	h1_diasbp_noninvasive_max: The patient's highest diastolic blood pressure during the first hour of their unit stay, invasively measured
+●	h1_diasbp_noninvasive_min: The patient's lowest diastolic blood pressure during the first hour of their unit stay, invasively measured
+
+●	h1_sysbp_noninvasive_max: The patient's highest systolic blood pressure during the first hour of their unit stay, non-invasively measured
+●	h1_sysbp_noninvasive_min: The patient's lowest systolic blood pressure during the first hour of their unit stay, non-invasively measured
+
+**The d1 and h1 highest and lowest diastolic and systolic blood pressure variable measures are considered, but their noninvasive measures are excluded to avoid the issue of mulicollinearity between the variables.**
+
+●	d1_mbp_noninvasive_max: The patient's highest mean blood pressure during the first 24 hours of their unit stay, non-invasively measured
+●	d1_mbp_noninvasive_min: The patient's lowest mean blood pressure during the first 24 hours of their unit stay, non-invasively measured
+
+●	h1_mbp_noninvasive_max: The patient's highest mean blood pressure during the first hour of their unit stay, non-invasively measured
+●	h1_mbp_noninvasive_min: The patient's lowest mean blood pressure during the first hour of their unit stay, non-invasively measured
+
+**The d1 and h1 highest and lowest mean blood pressure (MBP) variable measures are considered, but their noninvasive measures are excluded to avoid the issue of mulicollinearity between the variables.**
+
+●	d1_glucose_max: The highest glucose concentration of the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_glucose_min: The lowest glucose concentration of the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_potassium_max: The highest potassium concentration for the patient in their serum or plasma during the first 24 hours of their unit stay
+●	d1_potassium_min: The lowest potassium concentration for the patient in their serum or plasma during the first 24 hours of their unit stay
+
+**Glucose and potassium concentrations are considered are non critical measures for estimating the apache 4a score and patients survival and admission in the ICU ward**
+
+●	aids: Whether the patient has a definitive diagnosis of acquired immune deficiency syndrome (AIDS) (not HIV positive alone)
+●	cirrhosis: Whether the patient has a history of heavy alcohol use with portal hypertension and varices, other causes of cirrhosis with evidence of portal hypertension and varices, or biopsy proven cirrhosis.
+●	diabetes_mellitus: Whether the patient has been diagnosed with diabetes, either juvenile or adult onset, which requires medication.
+●	hepatic_failure: Whether the patient has cirrhosis and additional complications including jaundice and ascites, upper GI bleeding, hepatic encephalopathy, or coma.
+●	immunosuppression: Whether the patient has their immune system suppressed within six months prior to ICU admission for any of the following reasons: radiation therapy, chemotherapy, use of non-cytotoxic immunosuppressive drugs, high dose steroids (at least 0.3 mg/kg/day of methylprednisolone or equivalent for at least 6 months).
+●	leukemia: Whether the patient has been diagnosed with acute or chronic myelogenous leukemia, acute or chronic lymphocytic leukemia, or multiple myeloma.
+●	lymphoma: Whether the patient has been diagnosed with non-Hodgkin lymphoma.
+●	solid_tumor_with_metastasis: Whether the patient has been diagnosed with any solid tumor carcinoma (including malignant melanoma) which has evidence of metastasis.
+
+**The above variables have data that indicate whether a patient has any one or more ailments, they do not show any measures of the ailments, and therefore does not make them relevant for consideration**
+
+●	apache_3j_bodysystem: Admission diagnosis group for APACHE III
+●	apache_2_bodysystem: Admission diagnosis group for APACHE II
+
+**The bodysystem apache variables only categorizes a patient falling into one of the categories related to past or current condition for admission into the hospital**
+
+Based on the above explanation, selecting all useful variables via. select() method
+```{r}
+data <- df %>%
+  select(age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, icu_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, arf_apache, gcs_eyes_apache, gcs_motor_apache, gcs_verbal_apache, heart_rate_apache, intubated_apache, map_apache, resprate_apache, temp_apache, ventilated_apache, d1_diasbp_max, d1_diasbp_min, d1_heartrate_max, d1_heartrate_min, d1_mbp_max, d1_mbp_min, d1_resprate_max, d1_resprate_min, d1_spo2_max, d1_spo2_min, d1_sysbp_max, d1_sysbp_min, d1_temp_max, d1_temp_min, h1_diasbp_max, h1_diasbp_min, h1_heartrate_max, h1_heartrate_min, h1_mbp_max, h1_mbp_min, h1_resprate_max, h1_resprate_min, h1_spo2_max, h1_spo2_min, h1_sysbp_max, h1_sysbp_min, apache_4a_hospital_death_prob, apache_4a_icu_death_prob, hospital_death)
+
+data <- data.frame(data)
+str(data)
+```
+
+**We have selected 51 variables with 91713 observations to perform analysis.**
+
+Now let's run a summary statistic on the data
+```{r}
+summary(data)
+```
+
+**Calculating the total number of NULL values or NAs in the data set.**
+```{r}
+sum(is.na(data))
+```
+
+
+From the summary statistics we can see that the data set has 99294 missing values, we'll remove the missing values.
+
+```{r}
+# removing the missing values
+data %>% na.omit(data)
+```
+
+# Data conversion
+```{r}
+#converting categorical variables to numeric
+
+data$gender <- ifelse(as.factor(data$gender)=="M",1,0)
+data$gender <- as.numeric(as.character(data$gender))
+
+data$icu_admit_source <- as.factor(data$icu_admit_source)
+data$icu_admit_source <- unclass(data$icu_admit_source)
+data$icu_admit_source <- as.numeric(as.character(data$icu_admit_source))
+
+data$icu_stay_type <- as.factor(data$icu_stay_type)
+data$icu_stay_type <- unclass(data$icu_stay_type)
+data$icu_stay_type <- as.numeric(as.character(data$icu_stay_type))
+
+data$icu_type <- as.factor(data$icu_type)
+data$icu_type <- unclass(data$icu_type)
+data$icu_type <- as.numeric(as.character(data$icu_type))
+```
+
+# Dealing with missing values
+```{r}
+#missing values
+
+data[is.na(data)] <- min(data, na.rm = TRUE)
+sum(is.na(data))
+```
+
+
+# Confirming columns and observation duplication
+```{r}
+sum(duplicated(data))
+sum(duplicated(as.list(data)))
+```
+
+From the above result, we can see that the data set does not have any duplicate variables and observations.
+
+# BMI, Height, and Weight
+We first check the missing values in BMI and height columns.
+```{r}
+head(data$bmi)
+head(data$height)
+head(data$weight)
+
+sum(is.na(data$bmi))
+sum(is.na(data$height))
+sum(is.na(data$weight))
+```
+
+Next we round the decimals to 2.
+```{r, include=FALSE}
+
+round(data$bmi, digits = 2)
+round(data$height, digits = 2)
+round(data$weight, digits = 2)
+
+```
+
+Next we use the min function to calculate the minimum bmi and height. And we use the min values calculated by the function to fill the missing values
+```{r}
+#bmi
+data$bmi[is.na(data$bmi)] <- min(data$bmi, na.rm = TRUE)
+sum(is.na(data$bmi))
+#height
+data$height[is.na(data$height)] <- min(data$height, na.rm = TRUE)
+sum(is.na(data$height))
+#weight
+data$weight[is.na(data$weight)] <- min(data$weight, na.rm = TRUE)
+sum(is.na(data$weight))
+```
+
+
+# Data Exploration and Visualization
+
+The type of ICU stay and ICU type
+
+```{r}
+library(ggExtra)
+library(gridExtra)
+p <- ggplot(data, aes(x = apache_2_diagnosis, y = apache_3j_diagnosis)) +
+  geom_point() + geom_smooth(method = "lm")
+  theme(legend.position = "none")
+
+p1 <- ggMarginal(p, type = "histogram", fill = "green")
+
+p2 <- ggMarginal(p, type = "density", fill = "blue")
+
+p3 <- ggMarginal(p, type = "boxplot", fill = "orange")
+
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+The above marginal plot does not show a relationship between the values of apache 2 and apache 3j diagnosis. In the first plot, the histograms are skewed to the left. We can see the outliers in the plot. The box plots are skewed to the left. The density plot is skewed to the right.
+
+ICU stay and ICU type bar plot
+
+```{r}
+# Grouped Bar Plot
+counts <- table(data$icu_stay_type, data$icu_type)
+barplot(counts, main="Icu type and Icu Stay type",
+  xlab="No. of ICU types", ylab= "No. of ICU stays", col=c("darkblue","red"),
+  legend = rownames(counts), beside=TRUE)
+
+list(unique(df$icu_type))
+```
+The result of bar plot shows that ICU type no. 5 i.e. "Neuro ICU" has the highest number of ICU stays.
+
+**A scatter plot matrix to show the relationship between the response and all predictor variables**
+
+```{r}
+pairs(~hospital_death + age + bmi + elective_surgery + gender, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+
+pairs(~hospital_death + height + icu_admit_source + icu_stay_type + pre_icu_los_days + weight, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+
+pairs(~hospital_death + apache_2_diagnosis + apache_3j_diagnosis + heart_rate_apache + apache_4a_hospital_death_prob + apache_4a_icu_death_prob, data = data, col=ifelse(data$hospital_death ==1, 'green', 'black'))
+```
+
+# Scatter plot
+
+```{r}
+# scatter plot apache 4a hospital death probability and hospital death
+
+ggplot(data, aes(weight, bmi)) + geom_point(aes(color = height, alpha = 0.3)) + geom_smooth(method = lm, color = "red") + labs(x = "Weight", y = "BMI")
+```
+There seems to exist a linear relationship between BMI and weight, as weight increase the BMI also changes.
+# Correlation plot
+```{r, fig.height=5, fig.width=5}
+# correlation plot
+library(corrplot)
+data_plot <- data %>%
+  select(hospital_death, age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, heart_rate_apache, apache_4a_hospital_death_prob, apache_4a_icu_death_prob)
+data_plot <- data.frame(data_plot)
+M <- cor(data_plot)
+corrplot(M, method="number")
+corrplot(M, method= "circle")
+```
+From the above correlation plot, we can see that bmi, weight, apache 3j diagnosis, elective surgery, icu admit source, height, apache 2 diagnosis are highly correlated variables.
+
+# Grouped box plots
+
+```{r, fig.height=3, fig.width=5}
+# Box plots of Apache scores
+library(reshape)
+bplot <- melt(data = data, measure.vars = c(11,12,17,19,20), variable_name = "variable")
+
+ggplot(bplot, aes(x = variable, y = value, fill = "icu_admit_source")) +
+  geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores") + labs(x = "Apache Variables", y = "Values")
+```
+apache 2 diagnosis lies in the range 110- 300, the median is at 120, it doesn't have any outliers.
+apache 3j diagnosis lies in the range 210- 700, the median is at, it has many outliers in the third quartile.
+heart rate apache lies between 80 to 120 and has few outliers
+map apache lies between 55 and 125, its median is at 60 and it doesn't have any outliers.
+resprate apache lies in the range 11 and 35, the median is at 28 and it does not have any outliers.
+
+# Wordclouds
+
+**Apache_3j Bodysystem**
+```{r}
+library(tm)
+library(wordcloud)
+library(SnowballC)
+
+mooncloud <- df$apache_3j_bodysystem
+
+wordcloud(mooncloud, scale = c(10,0.7),
+          max.words=100,
+          random.order=FALSE,
+          rot.per=0.35,
+          use.r.layout = FALSE,
+          colors = brewer.pal(8, "Dark2"))
+```
+Word Cloud1: neurological, metabolic, trauma are the most frequent admitted group for Apache 3 body system
+
+**Apache_2 Bodysystem**
+```{r}
+suncloud <- df$apache_2_bodysystem
+
+wordcloud(suncloud, scale = c(10,0.7),
+          max.words=100,
+          random.order=FALSE,
+          rot.per=0.35,
+          use.r.layout = FALSE,
+          colors = brewer.pal(8, "Dark2"))
+```
+Word Cloud2: neurologic, respiratory, gastrointestinal, and metabolic are the most frequent admitted group for Apache 2 body system
+
+# Predictive modeling
+
+```{r}
+library(doParallel)
+clstr <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(clstr)
+```
+
+Viewing the death ratio of the number of patients admitted in a hospital, where 1 = dead, 0 = living
+```{r}
+ggplot(data, aes(as.factor(hospital_death), fill = hospital_death)) + geom_bar() + labs(x = "Hospital death")
+```
+
+From the above bar plot, we can see that the data in the response variable hospital_death is imbalanced, as the number of observations are much larger, therefore we choose to undersample the data to handling the imbalance issue.
+
+#UnderSampling the majority class
+```{r}
+library(unbalanced)
+undersampled_data <- ubBalance(data, 
+                               as.factor(data$hospital_death), 
+                               type='ubUnder',         # Option for under sampling
+                               verbose = TRUE)
+```
+
+```{r}
+usamp_data <- cbind(undersampled_data$X,    # combine output
+                               undersampled_data$Y)
+
+names(usamp_data)[names(usamp_data) == "undersampled_data$Y"] <- "Class" # change name to class
+levels(usamp_data$Class) <- c('1', '0')
+```
+
+```{r}
+table(usamp_data$hospital_death)
+```
+
+```{r}
+# ploting number of cases in undersampled dataset
+ggplot(data = usamp_data, aes(fill = Class))+
+    geom_bar(aes(x = Class))+
+    ggtitle("Number of samples in each class after undersampling", 
+            subtitle="Total samples: 15830")+
+     xlab("hospital death")+
+     ylab("Samples")+
+     scale_y_continuous(expand = c(0,0))+
+     scale_x_discrete(expand = c(0,0))+
+     theme(legend.position = "none", 
+           legend.title = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.background = element_blank())
+```
+
+# Data Partition (undersampled)
+
+```{r}
+# Data partition: randomly split the data set into a train (70%) and a test set (30%)
+index <- 1:nrow(usamp_data)
+set.seed(123)
+train_index <- sample(index, round(length(index)*0.7))
+usamp_train_set <- usamp_data[train_index,]
+usamp_test_set <- usamp_data[-train_index,]
+```
+
+
+# Model1: K- nearest neighbors to predict whether a patient admitted in the hospital will survive or not?
+
+```{r}
+# Basic KNN model
+library(class)
+# Select the true values of the response in training set
+cl <- usamp_train_set[,"hospital_death"]
+# Using knn for k = 5, 20
+knn5 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 5)
+```
+
+```{r}
+# Confusion matrix and statistics, k = 5
+confusionMatrix(as.factor(knn5),as.factor(usamp_test_set$hospital_death),positive = "0")
+```
+
+# Hyper parameter tuning for knn
+```{r}
+accuracy <- NULL
+sensitivity <-NULL
+specificity <- NULL
+  
+for(i in 1:30) {
+  knn.fit <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = i)
+  accuracy <- c(accuracy, mean(knn.fit == usamp_test_set$hospital_death))
+  sensitivity <- c(sensitivity, sensitivity(as.factor(knn.fit),as.factor(usamp_test_set$hospital_death), positive = "1"))
+  specificity <- c(specificity, specificity(as.factor(knn.fit),as.factor(usamp_test_set$hospital_death), negative = "0"))
+}
+
+balanced_accuracy = (sensitivity + specificity)/2
+```
+
+```{r}
+plot(1:30, accuracy, type = "l" ,col = "red", 
+     ylab = "Measures", xlab = "k",ylim = c(0.0, 1.0))
+
+lines(1:30, sensitivity, type = "l", col = "blue")
+
+lines(1:30, specificity, type = "l", col = "green")
+
+lines(1:30, balanced_accuracy, type = "l", col = "orange")
+
+legend("topright", legend = c("accuracy","sensitivity","specificity", "balanced accuracy"),
+       col = c("red","blue","green","orange"), lty = 1)
+```
+
+The results of the plot show that the tuned hyper parameters with model performance measures attain stability at k = 10, so we can try running k with value 10. 
+
+```{r}
+# Using optimal parameter k = 10 
+knn12 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 12)
+```
+
+```{r}
+confusionMatrix(as.factor(knn12),as.factor(usamp_test_set$hospital_death),positive = "0")
+```
+
+From the optimal parameter result, we can see that k with optimal parameter as 12 has not made much improvement in the result. **Therefore the chance of an admitted patient surviving in a hospital is 70%**  
+
+
+#OverSampling data
+
+```{r}
+oversampled_data <- ubBalance(data,
+                        as.factor(data$hospital_death), 
+                        type='ubOver',         # Option for oversampling
+                        k = 0,                 # Value of 0 creates 50:50 split
+                        verbose = TRUE)
+```
+
+
+```{r}
+osamp_data <- cbind(oversampled_data$X,    # combine output
+                               oversampled_data$Y)
+
+names(osamp_data)[names(osamp_data) == "oversampled_data$Y"] <- "Class" # change name to class
+levels(osamp_data$Class) <- c('1', '0')
+```
+
+
+```{r}
+table(osamp_data$hospital_death)
+```
+
+```{r}
+# ploting number of cases in undersampled dataset
+ggplot(data = osamp_data, aes(fill = Class))+
+    geom_bar(aes(x = Class))+
+    ggtitle("Number of samples in each class after undersampling", 
+            subtitle="Total samples: 167569")+
+     xlab("hospital death")+
+     ylab("Samples")+
+     scale_y_continuous(expand = c(0,0))+
+     scale_x_discrete(expand = c(0,0))+
+     theme(legend.position = "none", 
+           legend.title = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           panel.background = element_blank())
+```
+
+# Data Partition (oversampled)
+
+```{r}
+# Data partition: randomly split the data set into a train (70%) and a test set (30%)
+index <- 1:nrow(osamp_data)
+set.seed(123)
+train_index <- sample(index, round(length(index)*0.7))
+osamp_train_set <- osamp_data[train_index,]
+osamp_test_set <- osamp_data[-train_index,]
+```
+
+----------------------------------
+
+# Model2: Logistic Regression
+
+**We consider the over sampled data for runing logistic regression model**
+```{r}
+# Logistic regression
+logit1.fit <- glm(hospital_death ~ apache_2_diagnosis,
+                  family=binomial(link='logit'),data = osamp_data) # oversampled 
+
+summary(logit1.fit)
+```
+
+```{r}
+# Calculate predicted probability
+logit1.prob <- predict(logit1.fit, type = "response")
+
+plot(x = osamp_data$hospital_death, y = ifelse(osamp_data$hospital_death == "Yes", 1, 0), 
+     col = "orange", xlab = "Apache 2 diagnosis", ylab = "Probability of Death")
+
+points(x = osamp_data$hospital_death[order(osamp_data$hospital_death)], 
+       y = logit1.prob[order(osamp_data$hospital_death)], 
+       type = "l", col="blue", lwd = 2)
+
+
+# the blue curve represents the probability function. Probability in range 0 to 1
+```
+
+```{r}
+# Logistic regression
+logit2.fit <- glm(hospital_death ~ apache_3j_diagnosis,
+                  family=binomial(link='logit'),data = osamp_data) #oversampled
+
+summary(logit2.fit)
+```
+
+```{r}
+# Logistic regression
+logit3.fit <- glm(hospital_death ~ apache_2_diagnosis + apache_3j_diagnosis,
+                  family=binomial(link='logit'),data = osamp_data)
+
+summary(logit3.fit)
+```
+
+```{r}
+# Logistic regression with all predictors related to admitted patient's survival in a hospital
+logit.fit <- glm(hospital_death ~ apache_2_diagnosis + apache_3j_diagnosis + heart_rate_apache + map_apache + resprate_apache + temp_apache,
+                 family=binomial(link='logit'),data = osamp_data)
+
+summary(logit.fit)
+```
+
+**From the above model led summary statistics, it shows that all the apache predictors we selected are statistically significant**
+
+```{r}
+# Get coefficient estimates
+coef(logit.fit)
+```
+
+```{r}
+# Get coefficient estimates with statistics
+summary(logit.fit)$coef
+```
+
+```{r}
+# Get p-values for all coefficient estimates
+summary(logit.fit)$coef[,4]
+```
+
+# Interpreting logistic regression
+```{r}
+library(stargazer)
+stargazer(logit1.fit, logit2.fit, logit3.fit, logit.fit, 
+          type = "text",star.cutoffs = c(0.05, 0.01, 0.001),
+          title="Logistic Regression", digits=4)
+```
+
+
+# Prediction using logistic regression
+# In-sample prediction
+```{r}
+# Calculate probability of default
+logit.probs <- predict(logit.fit,type="response")
+
+# Show the first 10 values
+logit.probs[1:10]
+```
+
+```{r}
+# Calculate predicted default
+logit.pred <- ifelse(logit.probs >.5, "1", "0")
+
+# Show confusion matrix
+table(Prediction=logit.pred, Truth=osamp_data$hospital_death)
+```
+
+```{r}
+# Calculate in-sample prediction accuracy
+mean(logit.pred == osamp_data$hospital_death)
+```
+
+# logistic regression prediction accuracy
+```{r}
+confusionMatrix(factor(logit.pred),as.factor(osamp_data$hospital_death), positive = "0")
+
+```
+
+**For in sample prediction, the logistic regression model results with the balanced accuracy score of 62% and sensitivity score of 59%, a specificity score of 65% **
+
+# logistic regression "Out of sample prediction"
+
+Using 70%-30% split with sample() method for random sampling with over sampled data
+
+```{r}
+# Train the logistic regression model
+logit.fit.train <- glm(hospital_death ~ apache_2_diagnosis + 
+                         apache_3j_diagnosis + heart_rate_apache + 
+                         map_apache + resprate_apache + temp_apache, 
+                       family=binomial(link='logit'),data = osamp_train_set)
+
+summary(logit.fit.train)
+```
+
+Comparing full model and model trained using training data set. 
+```{r}
+stargazer(logit.fit, logit.fit.train, type = "text",star.cutoffs = c(0.05, 0.01, 0.001),
+          title="Logistic Regression", digits=4)
+```
+
+```{r}
+# Calculate probability of default
+test_probs <- predict(logit.fit.train, newdata = osamp_test_set, type="response")
+
+# Show the first 10 values
+test_probs[1:10]
+```
+
+```{r}
+# Calculate predicted default
+test_pred <- ifelse(test_probs >.5, "1", "0")
+
+# Show confusion matrix
+confusionMatrix(factor(test_pred),as.factor(osamp_test_set$hospital_death))
+```
+
+**The final logit model with out of sample prediction gives the accuracy score of 62% which is the same for in sample data. Giving us altogther the prediction of an admitted patient's survival in the hospital as 62%**
+
+-----------------------------
+
+# Model 3: Decision Tree
+
+# Data Preparation
+
+```{r}
+# get rid of identifiers and random X column
+df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
+
+# change categorical columns to factors
+factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+             "intubated_apache","ventilated_apache","aids","cirrhosis",
+             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+             "lymphoma","solid_tumor_with_metastasis","apache_3j_bodysystem",
+             "hospital_death")
+df[factors] <- lapply(df[factors], factor)
+
+
+df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kill all the omits if we later find those factors are irrelevant. our dataset cuts in half ~Austin
+
+# get rid of all rows with any NA's
+df <- na.omit(df)
+```
+
+## Checking Accuracy of Apache 4 Probabilities and Degenerate Model
+
+```{r}
+# use confusion matrix on apache death probability and hospital_death and degenerate model
+conmat_hospital_prob <- confusionMatrix(as.factor(ifelse(df$apache_4a_hospital_death_prob>.5,1,0)),df$hospital_death)
+conmat_icu_prob <- confusionMatrix(as.factor(ifelse(df$apache_4a_icu_death_prob>.5,1,0)),df$hospital_death)
+conmat_degenerate <- confusionMatrix(as.factor(ifelse(df$apache_4a_hospital_death_prob>-1.1,1,0)),df$hospital_death)
+
+print(paste("Apache 4 hospital death probablility balanced accuracy:",round(conmat_hospital_prob$byClass["Balanced Accuracy"],2)))
+print(paste("Apache 4 ICU death probablility balanced accuracy:",round(conmat_icu_prob$byClass["Balanced Accuracy"],2)))
+print(paste("Degenerate model balanced accuracy:",conmat_degenerate$byClass["Balanced Accuracy"]))
+```
+
+## Split Data into Train and Test
+
+```{r}
+# split data into training data and testing data
+#these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
+set.seed(123)
+train <- sample(1:nrow(df), nrow(df)*0.7)
+train_data <- df[train,]
+test_data <- df[-train,]
+```
+
+## Dealing with Imbalanced Data
+
+```{r}
+# number of 0s and 1s
+print("original hospital_death: ")
+table(df$hospital_death)
+
+# using oversampling with ROSE package
+over <- ovun.sample(hospital_death~., data = df, method = "over", N = 105312)$data
+print("oversampled hospital_death: ")
+table(over$hospital_death)
+
+# using undersampling with ROSE package
+under <- ovun.sample(hospital_death~., data = df, method = "under", N = 9884)$data
+print("undersampled hospital_death: ")
+table(under$hospital_death)
+
+# testing balanced accuracy of Apache 4 probabilities after oversampling
+# confusionMatrix(as.factor(ifelse(over$apache_4a_hospital_death_prob>.5,1,0)),over$hospital_death)
+# confusionMatrix(as.factor(ifelse(over$apache_4a_icu_death_prob>.5,1,0)),over$hospital_death)
+# Balanced accuracies end up being the same
+```
+
+## Simple Decision Trees with Apache 4 Probabilities
+
+```{r}
+first_tree <- tree(hospital_death ~ ., data = train_data)
+#summary(first_tree)
+plot(first_tree)
+text(first_tree, cex = 0.75, col = 'red')
+
+oversampled_tree <- tree(hospital_death ~ ., data = over)
+#summary(oversampled_tree)
+plot(oversampled_tree)
+text(oversampled_tree, cex = 0.75, col = 'red')
+
+undersampled_tree <- tree(hospital_death ~ ., data = under)
+#summary(undersampled_tree)
+plot(undersampled_tree)
+text(undersampled_tree, cex = 0.75, col = 'red')
+
+ft_yhat <- predict(first_tree, newdata = test_data, type = 'class')
+over_tree_yhat <- predict(oversampled_tree, newdata = test_data, type = 'class')
+under_tree_yhat <- predict(undersampled_tree, newdata = test_data, type = 'class')
+
+conmat_ft <- confusionMatrix(ft_yhat, test_data$hospital_death)
+conmat_over_tree <- confusionMatrix(over_tree_yhat, test_data$hospital_death)
+conmat_under_tree <- confusionMatrix(under_tree_yhat, test_data$hospital_death)
+
+print(paste("First tree with Apache 4 Probability balanced accuracy:",round(conmat_ft$byClass["Balanced Accuracy"],2)))
+print(paste("Oversampled tree with Apache 4 Probability balanced accuracy:",round(conmat_over_tree$byClass["Balanced Accuracy"],2)))
+print(paste("Undersampled tree with Apache 4 Probability balanced accuracy:",round(conmat_under_tree$byClass["Balanced Accuracy"],2)))
+```
+
+In terms of balanced accuracy, the decision tree using the undersampling data performs
+the best. The oversampled tree is about the same, but the normal sample trailed behind.
+This helps affirm that balancing the data will help the models predict more accurately.
+
+## Simple Decision Trees w/o Apache 4 Probabilities
+
+```{r}
+train_data_wo_a4 <- as.data.frame(subset(train_data,
+                                         select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+over_wo_a4 <- as.data.frame(subset(over,select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+under_wo_a4 <- as.data.frame(subset(under,select = -c(apache_4a_hospital_death_prob,
+                                                      apache_4a_icu_death_prob)))
+
+first_tree_wo_apache4 <- tree(hospital_death ~ ., data = train_data_wo_a4)
+#summary(first_tree_wo_apache4)
+plot(first_tree_wo_apache4)
+text(first_tree_wo_apache4, cex = 0.75, col = 'red')
+
+oversampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = over_wo_a4)
+#summary(oversampled_tree_wo_apache4)
+plot(oversampled_tree_wo_apache4)
+text(oversampled_tree_wo_apache4, cex = 0.75, col = 'red')
+
+undersampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = under_wo_a4)
+#summary(undersampled_tree_wo_apache4)
+plot(undersampled_tree_wo_apache4)
+text(undersampled_tree_wo_apache4, cex = 0.75, col = 'red')
+
+ft_wo_a4_yhat <- predict(first_tree_wo_apache4, newdata = test_data, type = 'class')
+over_tree_wo_a4_yhat <- predict(oversampled_tree_wo_apache4, newdata = test_data, type = 'class')
+under_tree_wo_a4_yhat <- predict(undersampled_tree_wo_apache4, newdata = test_data, type = 'class')
+
+conmat_ft_wo_a4 <- confusionMatrix(ft_wo_a4_yhat, test_data$hospital_death)
+conmat_over_tree_wo_a4 <- confusionMatrix(over_tree_wo_a4_yhat, test_data$hospital_death)
+conmat_under_tree_wo_a4 <- confusionMatrix(under_tree_wo_a4_yhat, test_data$hospital_death)
+
+print(paste("First tree w/o Apache 4 Probability balanced accuracy:",round(conmat_ft_wo_a4$byClass["Balanced Accuracy"],2)))
+print(paste("Oversampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_over_tree_wo_a4$byClass["Balanced Accuracy"],2)))
+print(paste("Undersampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_under_tree_wo_a4$byClass["Balanced Accuracy"],2)))
+
+
+```
+For the decision tree models that did not consider the calculated Apache death 
+probabilities, undersampling also performed the best overall.
+
+## Simple Decision Trees to Predict Apache Hospital Death Probability
+
+```{r}
+train_data_wo_icu <- as.data.frame(subset(train_data,select = -apache_4a_icu_death_prob))
+over_wo_icu <- as.data.frame(subset(over,select = -apache_4a_icu_death_prob))
+under_wo_icu <- as.data.frame(subset(under,select = -apache_4a_icu_death_prob))
+
+first_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = train_data_wo_icu)
+summary(first_tree_hosp)
+plot(first_tree_hosp)
+text(first_tree_hosp, cex = 0.75, col = 'red')
+
+oversampled_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = over_wo_icu)
+summary(oversampled_tree_hosp)
+plot(oversampled_tree_hosp)
+text(oversampled_tree_hosp, cex = 0.75, col = 'red')
+
+undersampled_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = over_wo_icu)
+summary(undersampled_tree_hosp)
+plot(undersampled_tree_hosp)
+text(undersampled_tree_hosp, cex = 0.75, col = 'red')
+
+ft_hosp_yhat <- predict(first_tree_hosp, newdata = test_data)
+over_tree_hosp_yhat <- predict(oversampled_tree, newdata = test_data)
+under_tree_hosp_yhat <- predict(undersampled_tree, newdata = test_data)
+
+pr_ft_hosp <- postResample(ft_hosp_yhat, test_data$apache_4a_hospital_death_prob)
+pr_over_tree_hosp <- postResample(over_tree_hosp_yhat, test_data$apache_4a_hospital_death_prob)
+pr_under_tree_hosp <- postResample(under_tree_hosp_yhat, test_data$apache_4a_hospital_death_prob)
+
+print("Decision tree balanced accuracy:")
+pr_ft_hosp
+print("Oversampled tree balanced accuracy:")
+pr_over_tree_hosp
+print("Undersampled tree balanced accuracy:")
+pr_under_tree_hosp
+```
+
+The first decision tree has the highest Rsquared, so it is mostly likely the best 
+fit and prediction model for the hospital death probability among the three decision
+trees.
+
+## Simple Decision Trees to Predict Apache Hospital Death Probability
+
+```{r}
+train_data_wo_hosp <- as.data.frame(subset(train_data,select = -apache_4a_hospital_death_prob))
+over_wo_hosp <- as.data.frame(subset(over,select = -apache_4a_hospital_death_prob))
+under_wo_hosp <- as.data.frame(subset(under,select = -apache_4a_hospital_death_prob))
+
+first_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = train_data_wo_hosp)
+summary(first_tree_icu)
+plot(first_tree_icu)
+text(first_tree_icu, cex = 0.75, col = 'red')
+
+oversampled_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = over_wo_hosp)
+summary(oversampled_tree_icu)
+plot(oversampled_tree_icu)
+text(oversampled_tree_icu, cex = 0.75, col = 'red')
+
+undersampled_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = under_wo_hosp)
+summary(undersampled_tree_icu)
+plot(undersampled_tree_icu)
+text(undersampled_tree_icu, cex = 0.75, col = 'red')
+
+ft_icu_yhat <- predict(first_tree_icu, newdata = test_data)
+over_tree_icu_yhat <- predict(oversampled_tree_icu, newdata = test_data)
+under_tree_icu_yhat <- predict(undersampled_tree_icu, newdata = test_data)
+
+pr_ft_icu <- postResample(ft_icu_yhat, test_data$apache_4a_icu_death_prob)
+pr_over_tree_icu <- postResample(over_tree_icu_yhat, test_data$apache_4a_icu_death_prob)
+pr_under_tree_icu <- postResample(under_tree_icu_yhat, test_data$apache_4a_icu_death_prob)
+
+print("Decision tree balanced accuracy:")
+pr_ft_icu
+print("Oversampled tree balanced accuracy:")
+pr_over_tree_icu
+print("Undersampled tree balanced accuracy:")
+pr_under_tree_icu
+```
+The first decision tree also has the highest Rsquared when trying to predict the 
+ICU death probability among the three decision trees.
+
+---------------------------
+
+# Model 4: Random Forest
+
+```{r}
+library(randomForest)
+library(lattice)
+library(lubridate)
+library(smotefamily)
+library(ROSE)
+```
+
+
+# Data Preparation
+
+
+```{r}
+
+#keep original copy of df for trim work.
+dfOriginal <- df
+#df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
+
+# get rid of identifiers and random X column
+#removal of apache variables.
+df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- df$apache_4a_hospital_death_prob <- df$apache_4a_icu_death_prob <- df$apache_3j_diagnosis <- df$apache_3j_diagnosis <- NULL
+df0 <- df
+# change columns to factors
+factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+             "intubated_apache","ventilated_apache","aids","cirrhosis",
+             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+             "lymphoma","solid_tumor_with_metastasis", "hospital_death")
+
+#factors <- c("elective_surgery","ethnicity","gender","icu_admit_source",
+#             "icu_stay_type","icu_type","apache_post_operative","arf_apache",
+#             "gcs_eyes_apache","gcs_motor_apache","gcs_unable_apache","gcs_verbal_apache",
+#             "intubated_apache","ventilated_apache","aids","cirrhosis",
+#             "diabetes_mellitus","hepatic_failure","immunosuppression","leukemia",
+#             "lymphoma","solid_tumor_with_metastasis","apache_3j_bodysystem",
+#             "hospital_death")
+df[factors] <- lapply(df[factors], factor)
+
+#table(df$hospital_death)
+
+df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kill all the omits if we later find those factors are irrelevant. our dataset cuts in half ~Austin
+
+
+
+#dfBal <- ovun.sample(hospital_death~., data = df, method = "over", N = 70000)$data
+
+#df0Bal <- dfBal
+
+#summary(dfBal)
+
+#table(df$hospital_death)
+#table(dfBal$hospital_death)
+
+
+
+```
+
+```{r}
+df <- na.omit(df)
+```
+
+
+
+```{r}
+# split data into training data and testing data
+#these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
+
+train <- sample(1:nrow(df), nrow(df)*0.7)
+train_data <- df[train,]
+test_data <- df[-train,]
+
+table(train_data$hospital_death)
+train_data0 <- train_data
+train_data0
+dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 7400)$data
+
+df0Bal <- dfBal
+train_data <- dfBal
+```
+
+
+```{r}
+#Austin Fit a random forest for variable selection, run time ~7.5 minutes
+library(randomForest)
+#set.seed(123)
+start_t <- Sys.time()
+cat("",cat(" Variable selection Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+#run a prelim rf for variable summary. 
+rf_eval <- randomForest(hospital_death~., data = train_data,
+                           mtry = 5, importance = TRUE)
+
+rf_eval
+varImpPlot(rf_eval) #plot relevance plot
+
+finish_t <- Sys.time()
+cat("",cat("Variable selection Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat("Variable selection The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+
+```
+
+```{r} 
+#Austin Identify the lowest impact variables from the RF run
+rfImp <- importance(rf_eval)
+#rfImp
+
+rf_Imp_Sort <- as.data.frame.matrix(rfImp)
+#adds a column for accuracy*gini for overall variable impact
+rf_Imp_Sort$cross <- rf_Imp_Sort$MeanDecreaseAccuracy*rf_Imp_Sort$MeanDecreaseGini
+#rf_Imp_Sort
+#adds an overall rank of impact of variable, with bigger being biggest ranked impact, with 1 being lowest impact
+rf_Imp_Sort$rank <- rank(rf_Imp_Sort$cross)
+#rf_Imp_Sort
+
+#variables ranked by cross order
+rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
+#rf_Imp_SO
+#variable list sorted by importance. Accuracy * Gini
+```
+
+```{r} 
+#Austin Check accuracy score against test data.
+rf_yhat <- predict(rf_eval, newdata = test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore <- postResample(rf_yhat, test_data$hospital_death)
+print(rfscore)
+```
+ Accuracy     Kappa 
+0.7668741 0.2620111 
+```{r}
+#Austin 
+rfVarDrop <-rf_Imp_Sort
+#trim the bottom x predictors
+rfVarDrop <- rfVarDrop %>% filter(rank <= 25)
+
+dropVar <- row.names(rfVarDrop) #Variables to drop list 
+
+#make a shorter list of variables from rf variable selection
+dfTrim <- df0[ , ! names(df0) %in% dropVar] 
+dfTrim <- na.omit(dfTrim)
+#dfTrim is experimental list.
+
+```
+
+```{r}
+#Austin create new train and test data from rf selection, with undersampling enabled for training set.
+train2 <- sample(1:nrow(dfTrim), nrow(dfTrim)*0.7)
+trim_train_data <- dfTrim[train2,]
+trim_test_data <- dfTrim[-train2,]
+#str(dfTrim)
+
+table(trim_train_data$hospital_death)
+trim_train_data0 <- trim_train_data
+#trim_train_data0
+trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 9200)$data
+
+df0Bal <- trim_dfBal
+trim_train_data <- trim_dfBal
+```
+
+```{r}
+#Austin  #30 second run time with 4 cores
+start_t <- Sys.time()
+cat("",cat("Trimmed Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rf_eval2 <- randomForest(hospital_death~., data = trim_train_data,
+                           mtry = 5, importance = TRUE)
+
+rf_eval2
+varImpPlot(rf_eval2)
+
+finish_t <- Sys.time()
+cat("",cat("Trimmed Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat("Trimmed The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+```
+
+```{r} 
+#Austin
+#Check accuracy score
+rf_yhat2 <- predict(rf_eval2, newdata = trim_test_data)
+#accuracy score of mtry 5 rf used for variable selection
+rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
+rfscore2
+#rfscore
+```
+
+```{r}
+#Austin
+print("Drop List")
+rownames(rfVarDrop)
+
+print("Keep List")
+colnames(dfTrim)
+```
+
+```{r}
+#Austin Run Tune on RF  took 8 minute s with 4:15
+tuneGrid <- data.frame(mtry = 4:15)
+#tuneGrid <- data.frame(mtry = 4:15)
+#tuneGrid value came out 9.
+
+
+control <- trainControl(method = 'cv', number = 5)
+# print out system time before training
+start_t <- Sys.time()
+cat("",cat("RFtune Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rftrim_tuned <- train(hospital_death ~ ., data = trim_train_data,
+                  method = 'rf',
+                  trControl = control,
+                  tuneGrid = tuneGrid)
+
+# print out system time after training
+finish_t <- Sys.time()
+cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+print(rftrim_tuned)
+
+#
+```
+
+-------------------------
+
+# Model 5: Artificial Neural networks
+
+**Using ANN, we will use model prediction method to answer how many days will a patient be admitted to the ICU ward ?**
+
+We take the following as our response variable,
+
+●	pre_icu_los_days: The length of stay of the patient between hospital admission and unit admission
+
+some data preProcessing before we make use of the reponse variable
+```{r}
+# rounding and using absolute values
+#pre_icu_los <- round(abs(data$pre_icu_los_days), digits = 2)
+# checking for null values, if any
+#sum(is.na(pre_icu_los))
+#newdata <- cbind(data, pre_icu_los)
+```
+
+
+Splitting the data with a single 80% 20% split
+
+```{r}
+library(caret)
+set.seed(1234)
+ann_trainIndex <- createDataPartition(data$apache_4a_icu_death_prob, p = .8, list = FALSE)
+
+ann_train_set <- data[ ann_trainIndex,]
+ann_test_set <- data[-ann_trainIndex,]
+
+nrow(ann_train_set)
+nrow(ann_test_set)
+```
+
+
+First we'll normalize the data. We normalize the data in the range [0,1], using preProcess() method we normalize the variables.
+```{r}
+# calculate the pre-process parameters from the training dataset
+preprocessParams <- preProcess(ann_train_set, method = c("range")) # range- (normalizing variables in the range 0 to 1)
+
+# summarize transform parameters
+print(preprocessParams)
+```
+
+```{r, include=FALSE}
+# transform the training dataset using the parameters
+train_scaled <- predict(preprocessParams, ann_train_set)
+
+# summarize the transformed dataset
+summary(train_scaled)
+```
+
+Using the same parameters to transform the test dataset.
+
+```{r}
+# transform the test dataset using the parameters
+test_scaled <- predict(preprocessParams, ann_test_set)
+
+# summarize the transformed dataset
+summary(test_scaled)
+```
+
+# Fitting ANN model
+
+Using neuralnet() method to train the neural network model with 5 hidden layers.
+```{r}
+library(neuralnet)
+
+f <- as.formula(apache_4a_icu_death_prob ~ icu_admit_source + icu_stay_type + icu_type + pre_icu_los_days + apache_2_diagnosis + apache_3j_diagnosis + gcs_eyes_apache + gcs_motor_apache + gcs_verbal_apache + heart_rate_apache + map_apache + resprate_apache + temp_apache + d1_diasbp_max + d1_diasbp_min + d1_heartrate_max + d1_heartrate_min + d1_mbp_max + d1_mbp_min + d1_resprate_max + d1_resprate_min + d1_spo2_max + d1_spo2_min + d1_sysbp_max + d1_sysbp_min + d1_temp_max + d1_temp_min + h1_diasbp_max + h1_diasbp_min + h1_heartrate_max + h1_heartrate_min + h1_mbp_max + h1_mbp_min + h1_resprate_max + h1_resprate_min + h1_spo2_max + h1_spo2_min + h1_sysbp_max + h1_sysbp_min)
+
+# Fit a neural network model with 2 hidden layers
+nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = 3, linear.output=TRUE) # 45- 50 mins
+
+# Show results
+summary(nn_fit_2)
+
+```
+
+
+```{r, fig.height=6, fig.width=7}
+plot(nn_fit_2,rep="best", cex=0.8)
+```
+
+```{r}
+# Fit a neural network model with 1 hidden layer
+nn_fit_1 <- neuralnet(f, data = train_scaled, hidden = 2) # 20 mins
+
+# Show results
+summary(nn_fit_1)
+```
+
+```{r,fig.height=6, fig.width=7}
+#plotting neural net model with 5 hidden layers
+plot(nn_fit_1, rep="best",cex=0.8)
+```
+
+# Evaluating Predictive Performance of the Two-Hidden-Layer Model
+
+We use compute() method in the neuralnet package for predicting the performance.
+
+```{r}
+# Computing the outputs of all neurons for specific arbitrary co variate vectors given a trained neural network
+pred2_norm <- compute(nn_fit_2, test_scaled[-1])
+pred2_norm <- pred2_norm$net.result
+```
+
+```{r}
+# Plot the normalized pre ICU los and predicted normalized pre ICU los
+plot(test_scaled$pre_icu_los,pred2_norm)
+```
+
+```{r}
+# Transform the normalized pre ICU los prediction to original scale
+pred2 <- pred2_norm*(max(ann_train_set$pre_icu_los) 
+                     -min(ann_train_set$pre_icu_los)) + min(newdata$pre_icu_los)
+
+```
+
+```{r}
+# Plot the pre ICU los and predicted pre ICU los
+plot(ann_test_set$pre_icu_los,pred2)
+```
+
+Calculating the prediction performance.
+```{r}
+options(digits = 3)
+postResample(pred2, ann_test_set$pre_icu_los)
+```
+
+# Evaluating Predictive Performance of the One-Hidden-Layer Model
+
+```{r}
+# Computes the outputs of all neurons for specific arbitrary co variate vectors given a trained neural network
+pred1_norm <- compute(nn_fit_1, test_scaled[-1])
+pred1_norm <- pred1_norm$net.result
+```
+
+```{r}
+# Plot the normalized pre ICU los and predicted normalized pre ICU los
+plot(test_scaled$pre_icu_los,pred1_norm)
+```
+
+```{r}
+# Transform the normalized pre ICU los prediction to original scale
+pred1 <- pred1_norm*(max(ann_train_set$pre_icu_los)
+                     - min(ann_train_set$pre_icu_los))
+         + min(ann_train_set$pre_icu_los)
+```
+
+```{r}
+# Plot the pre ICU los and predicted pre ICU los
+plot(ann_test_set$pre_icu_los,pred1)
+```
+
+Calculating the prediction performance.
+
+```{r}
+options(scipen=999)
+postResample(pred1, ann_test_set$pre_icu_los)
+```
+
+
+
+
+```{r}
+stopCluster(clstr)
+```
+
