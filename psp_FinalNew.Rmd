@@ -22,7 +22,7 @@ library(ROSE)
 ```
 
 # 1. Load the Data
-```{r, include=FALSE}
+```{r}
 df <- read.csv("dataset.csv")
 # view the structure of data
 str(df)
@@ -93,7 +93,7 @@ Dropping all irrelevant columns / selecting all valid columns in the data set.
 **The bodysystem apache variables only categorizes a patient falling into one of the categories related to past or current condition for admission into the hospital**
 
 Based on the above explanation, selecting all useful variables via. select() method
-```{r, include=FALSE}
+```{r}
 data <- df %>%
   select(age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, icu_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, arf_apache, gcs_eyes_apache, gcs_motor_apache, gcs_verbal_apache, heart_rate_apache, intubated_apache, map_apache, resprate_apache, temp_apache, ventilated_apache, d1_diasbp_max, d1_diasbp_min, d1_heartrate_max, d1_heartrate_min, d1_mbp_max, d1_mbp_min, d1_resprate_max, d1_resprate_min, d1_spo2_max, d1_spo2_min, d1_sysbp_max, d1_sysbp_min, d1_temp_max, d1_temp_min, h1_diasbp_max, h1_diasbp_min, h1_heartrate_max, h1_heartrate_min, h1_mbp_max, h1_mbp_min, h1_resprate_max, h1_resprate_min, h1_spo2_max, h1_spo2_min, h1_sysbp_max, h1_sysbp_min, apache_4a_hospital_death_prob, apache_4a_icu_death_prob, hospital_death)
 
@@ -118,7 +118,7 @@ From the summary statistics we can see that the data set has 99294 missing value
 
 ```{r}
 # removing the missing values
-data <- na.omit(data)
+data %>% na.omit(data)
 ```
 
 # Data conversion
@@ -418,10 +418,10 @@ legend("topright", legend = c("accuracy","sensitivity","specificity", "balanced 
        col = c("red","blue","green","orange"), lty = 1)
 ```
 
-The results of the plot show that the tuned hyper parameters with model performance measures attain stability at k = 12, so we can try running k with value 12. 
+The results of the plot show that the tuned hyper parameters with model performance measures attain stability at k = 10, so we can try running k with value 10. 
 
 ```{r}
-# Using optimal parameter k = 12 
+# Using optimal parameter k = 10 
 knn12 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 12)
 ```
 
@@ -825,7 +825,7 @@ The first decision tree has the highest Rsquared, so it is mostly likely the bes
 fit and prediction model for the hospital death probability among the three decision
 trees.
 
-## Simple Decision Trees to Predict Apache ICU Death Probability
+## Simple Decision Trees to Predict Apache Hospital Death Probability
 
 ```{r}
 train_data_wo_hosp <- as.data.frame(subset(train_data,select = -apache_4a_hospital_death_prob))
@@ -933,7 +933,7 @@ df <- na.omit(df)
 
 
 
-```{r, include=FALSE}
+```{r}
 # split data into training data and testing data
 #these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
 
@@ -1026,7 +1026,7 @@ trim_test_data <- dfTrim[-train2,]
 table(trim_train_data$hospital_death)
 trim_train_data0 <- trim_train_data
 #trim_train_data0
-trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 7600)$data
+trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 9200)$data
 
 df0Bal <- trim_dfBal
 trim_train_data <- trim_dfBal
@@ -1059,7 +1059,42 @@ rfscore2
 #rfscore
 ```
 
+```{r}
+#Austin
+print("Drop List")
+rownames(rfVarDrop)
 
+print("Keep List")
+colnames(dfTrim)
+```
+
+```{r}
+#Austin Run Tune on RF  took 8 minute s with 4:15
+tuneGrid <- data.frame(mtry = 4:15)
+#tuneGrid <- data.frame(mtry = 4:15)
+#tuneGrid value came out 9.
+
+
+control <- trainControl(method = 'cv', number = 5)
+# print out system time before training
+start_t <- Sys.time()
+cat("",cat("RFtune Training started at:",format(start_t, "%a %b %d %X %Y")))
+
+rftrim_tuned <- train(hospital_death ~ ., data = trim_train_data,
+                  method = 'rf',
+                  trControl = control,
+                  tuneGrid = tuneGrid)
+
+# print out system time after training
+finish_t <- Sys.time()
+cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
+
+cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
+print(rftrim_tuned)
+
+#
+```
 
 -------------------------
 
@@ -1074,10 +1109,10 @@ We take the following as our response variable,
 some data preProcessing before we make use of the reponse variable
 ```{r}
 # rounding and using absolute values
-pre_icu_los <- round(abs(data$pre_icu_los_days), digits = 2)
+#pre_icu_los <- round(abs(data$pre_icu_los_days), digits = 2)
 # checking for null values, if any
-sum(is.na(pre_icu_los))
-newdata <- cbind(data, pre_icu_los)
+#sum(is.na(pre_icu_los))
+#newdata <- cbind(data, pre_icu_los)
 ```
 
 
@@ -1086,10 +1121,10 @@ Splitting the data with a single 80% 20% split
 ```{r}
 library(caret)
 set.seed(1234)
-ann_trainIndex <- createDataPartition(newdata$pre_icu_los, p = .8, list = FALSE)
+ann_trainIndex <- createDataPartition(data$apache_4a_icu_death_prob, p = .8, list = FALSE)
 
-ann_train_set <- newdata[ ann_trainIndex,]
-ann_test_set <- newdata[-ann_trainIndex,]
+ann_train_set <- data[ ann_trainIndex,]
+ann_test_set <- data[-ann_trainIndex,]
 
 nrow(ann_train_set)
 nrow(ann_test_set)
@@ -1125,14 +1160,14 @@ summary(test_scaled)
 
 # Fitting ANN model
 
-Using neuralnet() method to train the neural network model with 3 hidden layers.
+Using neuralnet() method to train the neural network model with 5 hidden layers.
 ```{r}
 library(neuralnet)
 
-f <- as.formula(pre_icu_los ~ icu_admit_source + icu_stay_type + icu_type + apache_2_diagnosis + apache_3j_diagnosis + gcs_eyes_apache + gcs_motor_apache + gcs_verbal_apache + heart_rate_apache + map_apache + resprate_apache + temp_apache + d1_diasbp_max + d1_diasbp_min + d1_heartrate_max + d1_heartrate_min + d1_mbp_max + d1_mbp_min + d1_resprate_max + d1_resprate_min + d1_spo2_max + d1_spo2_min + d1_sysbp_max + d1_sysbp_min + d1_temp_max + d1_temp_min + h1_diasbp_max + h1_diasbp_min + h1_heartrate_max + h1_heartrate_min + h1_mbp_max + h1_mbp_min + h1_resprate_max + h1_resprate_min + h1_spo2_max + h1_spo2_min + h1_sysbp_max + h1_sysbp_min)
+f <- as.formula(apache_4a_icu_death_prob ~ icu_admit_source + icu_stay_type + icu_type + pre_icu_los_days + apache_2_diagnosis + apache_3j_diagnosis + gcs_eyes_apache + gcs_motor_apache + gcs_verbal_apache + heart_rate_apache + map_apache + resprate_apache + temp_apache + d1_diasbp_max + d1_diasbp_min + d1_heartrate_max + d1_heartrate_min + d1_mbp_max + d1_mbp_min + d1_resprate_max + d1_resprate_min + d1_spo2_max + d1_spo2_min + d1_sysbp_max + d1_sysbp_min + d1_temp_max + d1_temp_min + h1_diasbp_max + h1_diasbp_min + h1_heartrate_max + h1_heartrate_min + h1_mbp_max + h1_mbp_min + h1_resprate_max + h1_resprate_min + h1_spo2_max + h1_spo2_min + h1_sysbp_max + h1_sysbp_min)
 
 # Fit a neural network model with 2 hidden layers
-nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = c(2,1), linear.output=TRUE) # 45- 50 mins
+nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = 3, linear.output=TRUE) # 45- 50 mins
 
 # Show results
 summary(nn_fit_2)
@@ -1153,7 +1188,7 @@ summary(nn_fit_1)
 ```
 
 ```{r,fig.height=6, fig.width=7}
-#plotting neural net model with 2 hidden layers
+#plotting neural net model with 5 hidden layers
 plot(nn_fit_1, rep="best",cex=0.8)
 ```
 
