@@ -11,52 +11,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Data Preparation
 
-Import data	                                                          Crawford
-Store data into a dataframe	                                          Crawford
-Perform high level review of data	                                    Crawford
-Run prelim statistics on data	                                        Crawford
-Review data for missing data	                                        Baer
-Identify High integrity predictors                                    Baer
-Remove unhelpful predictors (Such as, perhaps, ID)                    Baer
-Transform data for usability	                                        Rane
-Visualize data	                                                      Baer
-Identify if any continuous data is non-normal	                        Funcheon
-
-Identify if any discrete data is heavily unbalanced                   Rane
-Consider data normalization	                                          Rane
-Consider balancing data	                                              Funcheon
-Consider transformation of some fields, such as log transformation	  Funcheon
-Cleanse data                                                        	Funcheon
-Format datafields into data levels (if needed)                    	  Funcheon
-Run statistical analysis of predictors  .                           	Rane
-Prune unhelpful predictors to drive to parsimonous model.	            Rane
-Evaluate for collinearity	                                            Baer
-Reduce model for predictors that have high colinearity	              Baer
-Re-run statistical analysis on reduced model	                        Crawford
-Break data up into train test and validate data set	                  Crawford
-Run model type #1	                                                    Crawford
-Evaluate results of model type #1	                                    Crawford
-Run model type #2	                                                    Crawford
-Evaluate results of model type #2	                                    Crawford
-Run model type #3	                                                    Rane
-Evaluate results of model type #3	                                    Rane
-Run model type #4	                                                    Funcheon
-Evaluate results of model type #4	                                    Funcheon
-Tune parameters of favored model                                    	Rane
-Validate favored model on Test group                                	Rane
-
-
 ```{r}
 # Importing all libraries
 library(caret)
 library(ggplot2)
 library(tidyr)
 library(dplyr)
-
+library(tree)
+library(ROSE)
 ```
 
 # 1. Load the Data
-```{r}
+```{r, include=FALSE}
 df <- read.csv("dataset.csv")
 # view the structure of data
 str(df)
@@ -127,7 +93,7 @@ Dropping all irrelevant columns / selecting all valid columns in the data set.
 **The bodysystem apache variables only categorizes a patient falling into one of the categories related to past or current condition for admission into the hospital**
 
 Based on the above explanation, selecting all useful variables via. select() method
-```{r}
+```{r, include=FALSE}
 data <- df %>%
   select(age, bmi, elective_surgery, gender, height, icu_admit_source, icu_stay_type, icu_type, pre_icu_los_days, weight, apache_2_diagnosis, apache_3j_diagnosis, arf_apache, gcs_eyes_apache, gcs_motor_apache, gcs_verbal_apache, heart_rate_apache, intubated_apache, map_apache, resprate_apache, temp_apache, ventilated_apache, d1_diasbp_max, d1_diasbp_min, d1_heartrate_max, d1_heartrate_min, d1_mbp_max, d1_mbp_min, d1_resprate_max, d1_resprate_min, d1_spo2_max, d1_spo2_min, d1_sysbp_max, d1_sysbp_min, d1_temp_max, d1_temp_min, h1_diasbp_max, h1_diasbp_min, h1_heartrate_max, h1_heartrate_min, h1_mbp_max, h1_mbp_min, h1_resprate_max, h1_resprate_min, h1_spo2_max, h1_spo2_min, h1_sysbp_max, h1_sysbp_min, apache_4a_hospital_death_prob, apache_4a_icu_death_prob, hospital_death)
 
@@ -152,7 +118,7 @@ From the summary statistics we can see that the data set has 99294 missing value
 
 ```{r}
 # removing the missing values
-data %>% na.omit(data)
+data <- na.omit(data)
 ```
 
 # Data conversion
@@ -279,7 +245,7 @@ pairs(~hospital_death + apache_2_diagnosis + apache_3j_diagnosis + heart_rate_ap
 
 ggplot(data, aes(weight, bmi)) + geom_point(aes(color = height, alpha = 0.3)) + geom_smooth(method = lm, color = "red") + labs(x = "Weight", y = "BMI")
 ```
-
+There seems to exist a linear relationship between BMI and weight, as weight increase the BMI also changes.
 # Correlation plot
 ```{r, fig.height=5, fig.width=5}
 # correlation plot
@@ -291,7 +257,7 @@ M <- cor(data_plot)
 corrplot(M, method="number")
 corrplot(M, method= "circle")
 ```
-From the above correlation plot, we can see that bmi 
+From the above correlation plot, we can see that bmi, weight, apache 3j diagnosis, elective surgery, icu admit source, height, apache 2 diagnosis are highly correlated variables.
 
 # Grouped box plots
 
@@ -303,8 +269,11 @@ bplot <- melt(data = data, measure.vars = c(11,12,17,19,20), variable_name = "va
 ggplot(bplot, aes(x = variable, y = value, fill = "icu_admit_source")) +
   geom_boxplot() + facet_wrap(~ variable, scales = "free", ncol = 5) + labs(title = "Boxplots of apache scores") + labs(x = "Apache Variables", y = "Values")
 ```
-
-
+apache 2 diagnosis lies in the range 110- 300, the median is at 120, it doesn't have any outliers.
+apache 3j diagnosis lies in the range 210- 700, the median is at, it has many outliers in the third quartile.
+heart rate apache lies between 80 to 120 and has few outliers
+map apache lies between 55 and 125, its median is at 60 and it doesn't have any outliers.
+resprate apache lies in the range 11 and 35, the median is at 28 and it does not have any outliers.
 
 # Wordclouds
 
@@ -353,7 +322,7 @@ ggplot(data, aes(as.factor(hospital_death), fill = hospital_death)) + geom_bar()
 
 From the above bar plot, we can see that the data in the response variable hospital_death is imbalanced, as the number of observations are much larger, therefore we choose to undersample the data to handling the imbalance issue.
 
-# UnderSampling the majority class
+#UnderSampling the majority class
 ```{r}
 library(unbalanced)
 undersampled_data <- ubBalance(data, 
@@ -449,10 +418,10 @@ legend("topright", legend = c("accuracy","sensitivity","specificity", "balanced 
        col = c("red","blue","green","orange"), lty = 1)
 ```
 
-The results of the plot show that the tuned hyper parameters with model performance measures attain stability at k = 10, so we can try running k with value 10. 
+The results of the plot show that the tuned hyper parameters with model performance measures attain stability at k = 12, so we can try running k with value 12. 
 
 ```{r}
-# Using optimal parameter k = 10 
+# Using optimal parameter k = 12 
 knn12 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 12)
 ```
 
@@ -460,7 +429,7 @@ knn12 <- knn(usamp_train_set[,-1],usamp_test_set[,-1], cl, k = 12)
 confusionMatrix(as.factor(knn12),as.factor(usamp_test_set$hospital_death),positive = "0")
 ```
 
-From the optimal parameter result, we can see that k with optimal parameter as 12 has not made much improvement in the result. **Therefore the chance of an admitted patient surviving in a hospital is 68%**  
+From the optimal parameter result, we can see that k with optimal parameter as 12 has not made much improvement in the result. **Therefore the chance of an admitted patient surviving in a hospital is 70%**  
 
 
 #OverSampling data
@@ -519,6 +488,7 @@ osamp_test_set <- osamp_data[-train_index,]
 
 # Model2: Logistic Regression
 
+**We consider the over sampled data for runing logistic regression model**
 ```{r}
 # Logistic regression
 logit1.fit <- glm(hospital_death ~ apache_2_diagnosis,
@@ -566,6 +536,8 @@ logit.fit <- glm(hospital_death ~ apache_2_diagnosis + apache_3j_diagnosis + hea
 summary(logit.fit)
 ```
 
+**From the above model led summary statistics, it shows that all the apache predictors we selected are statistically significant**
+
 ```{r}
 # Get coefficient estimates
 coef(logit.fit)
@@ -589,21 +561,6 @@ stargazer(logit1.fit, logit2.fit, logit3.fit, logit.fit,
           title="Logistic Regression", digits=4)
 ```
 
-# Calculating McFadden Pseudo R Squared by sung the pscl package
-
-```{r}
-library(pscl)
-pR2(logit.fit)
-```
-
-# Manually calculating pseudo R Squared
-```{r}
-# Fit the null model
-logit.null.fit <- glm(hospital_death ~ 1,family=binomial(link='logit'),data=osamp_data)
-
-# Show the log likelihood of the null model
-logLik(logit.null.fit)
-```
 
 # Prediction using logistic regression
 # In-sample prediction
@@ -632,10 +589,9 @@ mean(logit.pred == osamp_data$hospital_death)
 ```{r}
 confusionMatrix(factor(logit.pred),as.factor(osamp_data$hospital_death), positive = "0")
 
-sensitivity(factor(logit.pred),as.factor(osamp_data$hospital_death), positive = "0")
-
-specificity(factor(logit.pred),as.factor(osamp_data$hospital_death), negative = "1")
 ```
+
+**For in sample prediction, the logistic regression model results with the balanced accuracy score of 62% and sensitivity score of 59%, a specificity score of 65% **
 
 # logistic regression "Out of sample prediction"
 
@@ -673,13 +629,11 @@ test_pred <- ifelse(test_probs >.5, "1", "0")
 confusionMatrix(factor(test_pred),as.factor(osamp_test_set$hospital_death))
 ```
 
+**The final logit model with out of sample prediction gives the accuracy score of 62% which is the same for in sample data. Giving us altogther the prediction of an admitted patient's survival in the hospital as 62%**
+
 -----------------------------
 
 # Model 3: Decision Tree
-
-```{r}
-library(tree)
-```
 
 # Data Preparation
 
@@ -755,17 +709,17 @@ table(under$hospital_death)
 
 ```{r}
 first_tree <- tree(hospital_death ~ ., data = train_data)
-summary(first_tree)
+#summary(first_tree)
 plot(first_tree)
 text(first_tree, cex = 0.75, col = 'red')
 
 oversampled_tree <- tree(hospital_death ~ ., data = over)
-summary(oversampled_tree)
+#summary(oversampled_tree)
 plot(oversampled_tree)
 text(oversampled_tree, cex = 0.75, col = 'red')
 
 undersampled_tree <- tree(hospital_death ~ ., data = under)
-summary(undersampled_tree)
+#summary(undersampled_tree)
 plot(undersampled_tree)
 text(undersampled_tree, cex = 0.75, col = 'red')
 
@@ -798,17 +752,17 @@ under_wo_a4 <- as.data.frame(subset(under,select = -c(apache_4a_hospital_death_p
                                                       apache_4a_icu_death_prob)))
 
 first_tree_wo_apache4 <- tree(hospital_death ~ ., data = train_data_wo_a4)
-summary(first_tree_wo_apache4)
+#summary(first_tree_wo_apache4)
 plot(first_tree_wo_apache4)
 text(first_tree_wo_apache4, cex = 0.75, col = 'red')
 
 oversampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = over_wo_a4)
-summary(oversampled_tree_wo_apache4)
+#summary(oversampled_tree_wo_apache4)
 plot(oversampled_tree_wo_apache4)
 text(oversampled_tree_wo_apache4, cex = 0.75, col = 'red')
 
 undersampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = under_wo_a4)
-summary(undersampled_tree_wo_apache4)
+#summary(undersampled_tree_wo_apache4)
 plot(undersampled_tree_wo_apache4)
 text(undersampled_tree_wo_apache4, cex = 0.75, col = 'red')
 
@@ -823,8 +777,9 @@ conmat_under_tree_wo_a4 <- confusionMatrix(under_tree_wo_a4_yhat, test_data$hosp
 print(paste("First tree w/o Apache 4 Probability balanced accuracy:",round(conmat_ft_wo_a4$byClass["Balanced Accuracy"],2)))
 print(paste("Oversampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_over_tree_wo_a4$byClass["Balanced Accuracy"],2)))
 print(paste("Undersampled tree w/o Apache 4 Probability balanced accuracy:",round(conmat_under_tree_wo_a4$byClass["Balanced Accuracy"],2)))
-```
 
+
+```
 For the decision tree models that did not consider the calculated Apache death 
 probabilities, undersampling also performed the best overall.
 
@@ -907,7 +862,6 @@ pr_over_tree_icu
 print("Undersampled tree balanced accuracy:")
 pr_under_tree_icu
 ```
-
 The first decision tree also has the highest Rsquared when trying to predict the 
 ICU death probability among the three decision trees.
 
@@ -924,11 +878,11 @@ library(ROSE)
 ```
 
 
-
-
 # Data Preparation
+
+
 ```{r}
-set.seed(123)
+
 #keep original copy of df for trim work.
 dfOriginal <- df
 #df$encounter_id <- df$patient_id <- df$hospital_id <- df$X <- NULL
@@ -969,13 +923,17 @@ df0 <- df # keeping an origin copy of df. I suspect we don't want to blanket kil
 #table(df$hospital_death)
 #table(dfBal$hospital_death)
 
+
+
 ```
 
 ```{r}
 df <- na.omit(df)
 ```
 
-```{r}
+
+
+```{r, include=FALSE}
 # split data into training data and testing data
 #these variables are only used for first pass. Use trim_train_data and trim_test_data instead after bottom 30 variables reduced.
 
@@ -991,6 +949,7 @@ dfBal <- ovun.sample(hospital_death~., data = train_data, method = "under", N = 
 df0Bal <- dfBal
 train_data <- dfBal
 ```
+
 
 ```{r}
 #Austin Fit a random forest for variable selection, run time ~7.5 minutes
@@ -1010,6 +969,7 @@ finish_t <- Sys.time()
 cat("",cat("Variable selection Training finished at:",format(finish_t, "%a %b %d %X %Y")))
 
 cat("Variable selection The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
+
 
 ```
 
@@ -1032,7 +992,6 @@ rf_Imp_SO <- rf_Imp_Sort[order(-rf_Imp_Sort$cross),]
 #variable list sorted by importance. Accuracy * Gini
 ```
 
-
 ```{r} 
 #Austin Check accuracy score against test data.
 rf_yhat <- predict(rf_eval, newdata = test_data)
@@ -1040,7 +999,8 @@ rf_yhat <- predict(rf_eval, newdata = test_data)
 rfscore <- postResample(rf_yhat, test_data$hospital_death)
 print(rfscore)
 ```
-
+ Accuracy     Kappa 
+0.7668741 0.2620111 
 ```{r}
 #Austin 
 rfVarDrop <-rf_Imp_Sort
@@ -1056,7 +1016,6 @@ dfTrim <- na.omit(dfTrim)
 
 ```
 
-
 ```{r}
 #Austin create new train and test data from rf selection, with undersampling enabled for training set.
 train2 <- sample(1:nrow(dfTrim), nrow(dfTrim)*0.7)
@@ -1067,7 +1026,7 @@ trim_test_data <- dfTrim[-train2,]
 table(trim_train_data$hospital_death)
 trim_train_data0 <- trim_train_data
 #trim_train_data0
-trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 9200)$data
+trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 7600)$data
 
 df0Bal <- trim_dfBal
 trim_train_data <- trim_dfBal
@@ -1099,6 +1058,7 @@ rfscore2 <- postResample(rf_yhat2, trim_test_data$hospital_death)
 rfscore2
 #rfscore
 ```
+
 
 
 -------------------------
@@ -1165,14 +1125,14 @@ summary(test_scaled)
 
 # Fitting ANN model
 
-Using neuralnet() method to train the neural network model.
+Using neuralnet() method to train the neural network model with 3 hidden layers.
 ```{r}
 library(neuralnet)
 
 f <- as.formula(pre_icu_los ~ icu_admit_source + icu_stay_type + icu_type + apache_2_diagnosis + apache_3j_diagnosis + gcs_eyes_apache + gcs_motor_apache + gcs_verbal_apache + heart_rate_apache + map_apache + resprate_apache + temp_apache + d1_diasbp_max + d1_diasbp_min + d1_heartrate_max + d1_heartrate_min + d1_mbp_max + d1_mbp_min + d1_resprate_max + d1_resprate_min + d1_spo2_max + d1_spo2_min + d1_sysbp_max + d1_sysbp_min + d1_temp_max + d1_temp_min + h1_diasbp_max + h1_diasbp_min + h1_heartrate_max + h1_heartrate_min + h1_mbp_max + h1_mbp_min + h1_resprate_max + h1_resprate_min + h1_spo2_max + h1_spo2_min + h1_sysbp_max + h1_sysbp_min)
 
 # Fit a neural network model with 2 hidden layers
-nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = c(5,3), linear.output=TRUE) # 45- 50 mins
+nn_fit_2 <- neuralnet(f, data = train_scaled, hidden = c(2,1), linear.output=TRUE) # 45- 50 mins
 
 # Show results
 summary(nn_fit_2)
@@ -1186,14 +1146,14 @@ plot(nn_fit_2,rep="best", cex=0.8)
 
 ```{r}
 # Fit a neural network model with 1 hidden layer
-nn_fit_1 <- neuralnet(f, data = train_scaled, hidden = 5) # 20 mins
+nn_fit_1 <- neuralnet(f, data = train_scaled, hidden = 2) # 20 mins
 
 # Show results
 summary(nn_fit_1)
 ```
 
 ```{r,fig.height=6, fig.width=7}
-#plotting neural net model with 5 hidden layers
+#plotting neural net model with 2 hidden layers
 plot(nn_fit_1, rep="best",cex=0.8)
 ```
 
@@ -1261,6 +1221,7 @@ Calculating the prediction performance.
 options(scipen=999)
 postResample(pred1, ann_test_set$pre_icu_los)
 ```
+
 
 
 
