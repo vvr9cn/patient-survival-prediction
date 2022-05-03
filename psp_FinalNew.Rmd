@@ -17,8 +17,14 @@ library(caret)
 library(ggplot2)
 library(tidyr)
 library(dplyr)
-library(tree)
+library(randomForest)
+library(lattice)
+library(lubridate)
+library(smotefamily)
 library(ROSE)
+library(tree)
+cl <- makePSOCKcluster(detectCores() -1)
+registerDoParallel(cl)
 ```
 
 # 1. Load the Data
@@ -1026,7 +1032,7 @@ trim_test_data <- dfTrim[-train2,]
 table(trim_train_data$hospital_death)
 trim_train_data0 <- trim_train_data
 #trim_train_data0
-trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 9200)$data
+trim_dfBal <- ovun.sample(hospital_death~., data = trim_train_data, method = "under", N = 7600)$data
 
 df0Bal <- trim_dfBal
 trim_train_data <- trim_dfBal
@@ -1066,34 +1072,6 @@ rownames(rfVarDrop)
 
 print("Keep List")
 colnames(dfTrim)
-```
-
-```{r}
-#Austin Run Tune on RF  took 8 minute s with 4:15
-tuneGrid <- data.frame(mtry = 4:15)
-#tuneGrid <- data.frame(mtry = 4:15)
-#tuneGrid value came out 9.
-
-
-control <- trainControl(method = 'cv', number = 5)
-# print out system time before training
-start_t <- Sys.time()
-cat("",cat("RFtune Training started at:",format(start_t, "%a %b %d %X %Y")))
-
-rftrim_tuned <- train(hospital_death ~ ., data = trim_train_data,
-                  method = 'rf',
-                  trControl = control,
-                  tuneGrid = tuneGrid)
-
-# print out system time after training
-finish_t <- Sys.time()
-cat("",cat("RFTune Training finished at:",format(finish_t, "%a %b %d %X %Y")))
-
-cat(" RFTune The training process finished in",difftime(finish_t,start_t,units="mins"), "minutes")
-
-print(rftrim_tuned)
-
-#
 ```
 
 -------------------------
