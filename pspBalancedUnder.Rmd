@@ -245,23 +245,6 @@ print("Keep List")
 colnames(dfTrim)
 ```
 
-[1] "Drop List"
- [1] "bmi"                         "elective_surgery"            "ethnicity"                   "gender"                      "height"                     
- [6] "icu_id"                      "icu_stay_type"               "icu_type"                    "weight"                      "apache_post_operative"      
-[11] "arf_apache"                  "gcs_unable_apache"           "d1_diasbp_noninvasive_max"   "d1_mbp_max"                  "d1_spo2_max"                
-[16] "h1_spo2_max"                 "aids"                        "cirrhosis"                   "diabetes_mellitus"           "hepatic_failure"            
-[21] "immunosuppression"           "leukemia"                    "lymphoma"                    "solid_tumor_with_metastasis" "apache_2_bodysystem"        
-[1] "Keep List"
- [1] "age"                       "icu_admit_source"          "pre_icu_los_days"          "apache_2_diagnosis"        "gcs_eyes_apache"           "gcs_motor_apache"         
- [7] "gcs_verbal_apache"         "heart_rate_apache"         "intubated_apache"          "map_apache"                "resprate_apache"           "temp_apache"              
-[13] "ventilated_apache"         "d1_diasbp_max"             "d1_diasbp_min"             "d1_diasbp_noninvasive_min" "d1_heartrate_max"          "d1_heartrate_min"         
-[19] "d1_mbp_min"                "d1_mbp_noninvasive_max"    "d1_mbp_noninvasive_min"    "d1_resprate_max"           "d1_resprate_min"           "d1_spo2_min"              
-[25] "d1_sysbp_max"              "d1_sysbp_min"              "d1_sysbp_noninvasive_max"  "d1_sysbp_noninvasive_min"  "d1_temp_max"               "d1_temp_min"              
-[31] "h1_diasbp_max"             "h1_diasbp_min"             "h1_diasbp_noninvasive_max" "h1_diasbp_noninvasive_min" "h1_heartrate_max"          "h1_heartrate_min"         
-[37] "h1_mbp_max"                "h1_mbp_min"                "h1_mbp_noninvasive_max"    "h1_mbp_noninvasive_min"    "h1_resprate_max"           "h1_resprate_min"          
-[43] "h1_spo2_min"               "h1_sysbp_max"              "h1_sysbp_min"              "h1_sysbp_noninvasive_max"  "h1_sysbp_noninvasive_min"  "d1_glucose_max"           
-[49] "d1_glucose_min"            "d1_potassium_max"          "d1_potassium_min"          "apache_3j_bodysystem"      "hospital_death"   
-
 ```{r}
 #Austin Run Tune on RF  took 8 minute s with 4:15
 tuneGrid <- data.frame(mtry = 4:15)
@@ -289,35 +272,6 @@ print(rftrim_tuned)
 
 #
 ```
-RFtune Training started at: Mon May 02 4:37:32 PM 2022RFTune Training finished at: Mon May 02 4:48:52 PM 2022 RFTune The training process finished in 11.34424 minutesRandom Forest 
-
-9200 samples
-  52 predictor
-   2 classes: '0', '1' 
-
-No pre-processing
-Resampling: Cross-Validated (5 fold) 
-Summary of sample sizes: 7360, 7360, 7360, 7360, 7360 
-Resampling results across tuning parameters:
-
-  mtry  Accuracy   Kappa    
-   4    0.7811957  0.5458403
-   5    0.7827174  0.5489895
-   6    0.7841304  0.5520379
-   7    0.7842391  0.5527422
-   8    0.7846739  0.5538062
-   9    0.7831522  0.5508135
-  10    0.7845652  0.5534805
-  11    0.7843478  0.5535046
-  12    0.7864130  0.5576110
-  13    0.7846739  0.5541494
-  14    0.7835870  0.5521621
-  15    0.7836957  0.5524458
-
-Accuracy was used to select the optimal model using the largest value.
-The final value used for the model was mtry = 12.
-
-
 
 ```{r} 
 #Check accuracy score of RF tuned
