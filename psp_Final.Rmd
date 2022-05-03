@@ -755,17 +755,17 @@ table(under$hospital_death)
 
 ```{r}
 first_tree <- tree(hospital_death ~ ., data = train_data)
-#summary(first_tree)
+summary(first_tree)
 plot(first_tree)
 text(first_tree, cex = 0.75, col = 'red')
 
 oversampled_tree <- tree(hospital_death ~ ., data = over)
-#summary(oversampled_tree)
+summary(oversampled_tree)
 plot(oversampled_tree)
 text(oversampled_tree, cex = 0.75, col = 'red')
 
 undersampled_tree <- tree(hospital_death ~ ., data = under)
-#summary(undersampled_tree)
+summary(undersampled_tree)
 plot(undersampled_tree)
 text(undersampled_tree, cex = 0.75, col = 'red')
 
@@ -798,17 +798,17 @@ under_wo_a4 <- as.data.frame(subset(under,select = -c(apache_4a_hospital_death_p
                                                       apache_4a_icu_death_prob)))
 
 first_tree_wo_apache4 <- tree(hospital_death ~ ., data = train_data_wo_a4)
-#summary(first_tree_wo_apache4)
+summary(first_tree_wo_apache4)
 plot(first_tree_wo_apache4)
 text(first_tree_wo_apache4, cex = 0.75, col = 'red')
 
 oversampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = over_wo_a4)
-#summary(oversampled_tree_wo_apache4)
+summary(oversampled_tree_wo_apache4)
 plot(oversampled_tree_wo_apache4)
 text(oversampled_tree_wo_apache4, cex = 0.75, col = 'red')
 
 undersampled_tree_wo_apache4 <- tree(hospital_death ~ ., data = under_wo_a4)
-#summary(undersampled_tree_wo_apache4)
+summary(undersampled_tree_wo_apache4)
 plot(undersampled_tree_wo_apache4)
 text(undersampled_tree_wo_apache4, cex = 0.75, col = 'red')
 
@@ -836,17 +836,17 @@ over_wo_icu <- as.data.frame(subset(over,select = -apache_4a_icu_death_prob))
 under_wo_icu <- as.data.frame(subset(under,select = -apache_4a_icu_death_prob))
 
 first_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = train_data_wo_icu)
-#summary(first_tree_hosp)
+summary(first_tree_hosp)
 plot(first_tree_hosp)
 text(first_tree_hosp, cex = 0.75, col = 'red')
 
 oversampled_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = over_wo_icu)
-#summary(oversampled_tree_hosp)
+summary(oversampled_tree_hosp)
 plot(oversampled_tree_hosp)
 text(oversampled_tree_hosp, cex = 0.75, col = 'red')
 
 undersampled_tree_hosp <- tree(apache_4a_hospital_death_prob ~ ., data = over_wo_icu)
-#summary(undersampled_tree_hosp)
+summary(undersampled_tree_hosp)
 plot(undersampled_tree_hosp)
 text(undersampled_tree_hosp, cex = 0.75, col = 'red')
 
@@ -878,17 +878,17 @@ over_wo_hosp <- as.data.frame(subset(over,select = -apache_4a_hospital_death_pro
 under_wo_hosp <- as.data.frame(subset(under,select = -apache_4a_hospital_death_prob))
 
 first_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = train_data_wo_hosp)
-#summary(first_tree_icu)
+summary(first_tree_icu)
 plot(first_tree_icu)
 text(first_tree_icu, cex = 0.75, col = 'red')
 
 oversampled_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = over_wo_hosp)
-#summary(oversampled_tree_icu)
+summary(oversampled_tree_icu)
 plot(oversampled_tree_icu)
 text(oversampled_tree_icu, cex = 0.75, col = 'red')
 
 undersampled_tree_icu <- tree(apache_4a_icu_death_prob ~ ., data = under_wo_hosp)
-#summary(undersampled_tree_icu)
+summary(undersampled_tree_icu)
 plot(undersampled_tree_icu)
 text(undersampled_tree_icu, cex = 0.75, col = 'red')
 
